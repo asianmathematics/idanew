@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Squad Proto</title>
+<style>
+  body {
+    margin: 0;
+    padding: 0;
+    background-color: #0a0a0a; /* Dark background to make neon pop */
+    color: #e0e0e0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    overflow: hidden;
+    height: 100vh;
+    position: relative;
+  }
+
+  /* Base Blob Styles */
+  .blob, .blob2 {
+    position: absolute;
+    border: 2px solid #00ff66;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: rgba(0, 255, 102, 0.03);
+    width: 500px;
+    height: 200px;
+  }
+
+  /* Player Backline: Normal blob (flat top, rounded bottom) */
+  .player-backline {
+    border-radius: 100% 100% 100% 100% / 0% 0% 100% 100%;
+    bottom: 80px;
+    left: 5%;
+    rotate: 35deg;
+  }
+
+  /* Enemy Backline: Reversed blob (rounded top, flat bottom) */
+  .enemy-backline {
+    border-radius: 100% 100% 100% 100% / 100% 100% 0% 0%;
+    top: 120px;
+    right: 5%;
+    rotate: 35deg;
+  }
+
+  /* Frontline: Blob2 shape (lens/eye) */
+  .frontline {
+    border-radius: 5% / 50%;
+    top: 50%;
+    left: 50%;
+    /* Center it and apply the rotation from your original CSS */
+    transform: translate(-50%, -50%) rotate(35deg);
+    width: 600px; /* Slightly scaled up for the main frontline area */
+    height: 250px;
+  }
+
+  /* UI Panel for Unit Info */
+  .info-panel {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid #00ff66;
+    padding: 15px;
+    border-radius: 8px;
+    max-width: 250px;
+    z-index: 10;
+  }
+
+  .label {
+    font-weight: bold;
+    color: #00ff66;
+    margin-bottom: 5px;
+    font-size: 1.1em;
+    text-transform: uppercase;
+  }
+
+  .sub-text {
+    font-size: 0.85em;
+    color: #ccc;
+    text-align: center;
+    line-height: 1.4;
+  }
+
+  /* Small unit slots inside the blobs (matching the small shapes in your sketch) */
+  .unit-slot {
+    position: absolute;
+    width: 50px;
+    height: 50px;
+    border: 1px solid #00ff66;
+    border-radius: 12px;
+    background: rgba(0, 255, 102, 0.08);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 0.7em;
+    color: #00ff66;
+  }
+
+  /* Base class for counter-rotation */
+.flat-content {
+  /* Flex centering is inherited, but we ensure it doesn't break */
+  width: 100%; 
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Inverse rotations matching the parent blobs */
+.player-backline .flat-content { rotate: -35deg; }
+.enemy-backline .flat-content { rotate: -35deg; }
+.frontline .flat-content { rotate: -35deg; }
+</style>
+</head>
+<body>
+
+  <!-- Unit Info Panel (Top Left) -->
+  <div class="info-panel">
+    <div class="label">UNIT INFO</div>
+    <p style="margin: 5px 0; font-size: 0.9em;">Select a unit to view stats...</p>
+  </div>
+
+    <!-- Player Backline -->
+  <div class="blob player-backline">
+    <div class="flat-content">
+      <div style="text-align: center; padding: 20px;">
+        <div class="label">Player Backline</div>
+        <div class="sub-text">
+          Player info (HP, resources, timer, if special is available)<br>
+          Clicking reveals more info such as stats and modifiers
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Frontline -->
+  <div class="blob2 frontline">
+    <div class="flat-content">
+      <div style="text-align: center;">
+        <div class="label">Frontline</div>
+        <div class="sub-text">enemy info (HP & timer)</div>
+      </div>
+    <div class="unit-slot" style="top: 25%; left: 65%;">Unit</div>
+    <div class="unit-slot" style="bottom: 25%; left: 65%;">Unit</div>
+    </div>
+    <!-- Note: unit slots placed outside .flat-content so they stay anchored to the rotated shape, 
+         or put them inside if you want them flat too. -->
+  </div>
+
+  <!-- Enemy Backline -->
+  <div class="blob enemy-backline">
+    <div class="flat-content">
+      <div style="text-align: center;">
+        <div class="label">Enemy Backline</div>
+    <div class="unit-slot" style="top: 25%; left: 25%;">Unit</div>
+    <div class="unit-slot" style="top: 25%; right: 25%;">Unit</div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
