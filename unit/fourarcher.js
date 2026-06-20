@@ -32,7 +32,7 @@ const skills = {
                     function() {},
                     function(context) {
                         if (context.event === "attackStart" || context.event === "resistStart") {
-                            if (context.attacker === this.vars.caster) context.calcMods.all ? context.calcMods.all.reroll = (context.calcMods.all.reroll || 0) + 1 : context.calcMods.all = { reroll: 1 };
+                            if (context.attacker === this.vars.caster) (context.calcMods.all ??= { reroll: 0 }).reroll++;
                             if (context.defenders.includes(this.vars.caster) && resistDebuff(this.vars.caster, [context.attacker])[0] > 1) for (let i = 0; i < context.defenders.length; i++) if (context.defenders[i] === this.vars.caster) ((context.calcMods.defenders ??= [])[i] ??= { reroll: 0 }).reroll--;
                         }
                         else if (context.event === "turnEnd" && context.unit === this.vars.caster) this.vars.duration--;
@@ -163,7 +163,7 @@ const skills = {
                     { caster: this, target: this, duration: will[0] < 2 ? 0 : will[0] > 99 ? 7 : Math.ceil(will[0]/33), properties: ["mystic", "mana", "buff"], listeners: { attackStart: true, resistStart: true }, cancel: false, applied: true, focus: false },
                     function() { return !this.vars.duration },
                     function(context) {
-                        if (this.vars.applied && context.attacker === this.vars.caster) this.vars.duration--, context.calcMods.all ? context.calcMods.all.reroll = (context.calcMods.all.reroll || 0) + 1 : context.calcMods.all = { reroll: 1 };
+                        if (this.vars.applied && context.attacker === this.vars.caster) this.vars.duration--, (context.calcMods.all ??= { reroll: 0 }).reroll++;
                         return this.vars.duration <= 0;
                     },
                     function(cancel, temp) {
@@ -239,7 +239,7 @@ const skills = {
                         { caster: this, target: this, duration: will[0] > 99 ? 7 : Math.ceil(will[0]/25), properties: ["mystic", "buff"], listeners: { attackStart: true, resistStart: true }, cancel: false, applied: true, focus: false },
                         function() { return !this.vars.duration },
                         function(context) {
-                            if (this.vars.applied && context.attacker === this.vars.caster) this.vars.duration--, context.calcMods.all ? context.calcMods.all.reroll = (context.calcMods.all.reroll || 0) + 1 : context.calcMods.all = { reroll: 1 };
+                            if (this.vars.applied && context.attacker === this.vars.caster) this.vars.duration--, (context.calcMods.all ??= { reroll: 0 }).reroll++;
                             return this.vars.duration <= 0;
                         },
                         function(cancel, temp) {
@@ -356,7 +356,7 @@ const skills = {
                     function() {},
                     function(context) {
                         if (context.event === "attackStart" || context.event === "resistStart") {
-                            if (context.attacker === this.vars.caster) context.calcMods.all ? context.calcMods.all.reroll = (context.calcMods.all.reroll || 0) + 1 : context.calcMods.all = { reroll: 1 };
+                            if (context.attacker === this.vars.caster) (context.calcMods.all ??= { reroll: 0 }).reroll++;
                             if (context.defenders.includes(this.vars.caster) && resistDebuff(this.vars.caster, [context.attacker])[0] > 50) for (let i = 0; i < context.defenders.length; i++) if (context.defenders[i] === this.vars.caster) ((context.calcMods.defenders ??= [])[i] ??= { reroll: 0 }).reroll--;
                         }
                     },
@@ -492,7 +492,7 @@ const skills = {
                                 { caster: this.vars.caster, target: this.vars.caster, duration: will[0] > 99 ? 7 : Math.ceil(will[0]/25), properties: ["mystic", "buff"], listeners: { attackStart: true, resistStart: true }, cancel: false, applied: true, focus: false },
                                 function() { return !this.vars.duration },
                                 function(context) {
-                                    if (this.vars.applied && context.attacker === this.vars.caster) this.vars.duration--, context.calcMods.all ? context.calcMods.all.reroll = (context.calcMods.all.reroll || 0) + 1 : context.calcMods.all = { reroll: 1 };
+                                    if (this.vars.applied && context.attacker === this.vars.caster) this.vars.duration--, (context.calcMods.all ??= { reroll: 0 }).reroll++;
                                     return this.vars.duration <= 0;
                                 },
                                 function(cancel, temp) {
@@ -574,7 +574,7 @@ const skills = {
                     function() {},
                     function(context) {
                         if (context.event === "attackStart" || context.event === "resistStart") {
-                            if (context.attacker === this.vars.caster) context.calcMods.all ? context.calcMods.all.reroll = (context.calcMods.all.reroll || 0) + 1 : context.calcMods.all = { reroll: 1 };
+                            if (context.attacker === this.vars.caster) (context.calcMods.all ??= { reroll: 0 }).reroll++;
                             if (context.defenders.includes(this.vars.caster) && resistDebuff(this.vars.caster, [context.attacker])[0] > 25) for (let i = 0; i < context.defenders.length; i++) if (context.defenders[i] === this.vars.caster) ((context.calcMods.defenders ??= [])[i] ??= { reroll: 0 }).reroll--;
                         }
                     },
@@ -670,7 +670,7 @@ const skills = {
                                 },
                                 function(context) {
                                     if (!this.vars.applied) return;
-                                    if (context.attacker === this.vars.caster) this.vars.duration--, context.calcMods.all ? context.calcMods.all.reroll = (context.calcMods.all.reroll || 0) + 1 : context.calcMods.all = { reroll: 1 };
+                                    if (context.attacker === this.vars.caster) this.vars.duration--, (context.calcMods.all ??= { reroll: 0 }).reroll++;
                                     return this.vars.duration <= 0;
                                 },
                                 function(cancel, temp) {
