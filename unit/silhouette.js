@@ -1,4 +1,4 @@
-import { attack, basicModifier, eventState, logAction, Modifier, randTarget, unitFilter } from '../combatDictionary.js';
+import { attack, basicModifier, eventState, logAction, Modifier, randTarget, resistDebuff, unitFilter } from '../combatDictionary.js';
 import { Unit } from './unit.js';
 
 export const Silhouette = new Unit("Silhouette", [650, 24, 25, 110, 160, 135, 140, 75, 50, "mid", 60, 80, 6, 100, 8]);
@@ -23,17 +23,20 @@ const skills = {
             name: "Fear of the Dark",
             properties: ["physical", "stamina", "mystic", "mana", "buff", "debuff", "positional"],
             cost: { stamina: 15, mana: 25 },
-            description: "Cost 15 stamina & 25 mana\nIncreases evasion/focus/presence, gives advantage to shadow blade attack at frontline, decreases enemy accuracy or focus of attacks/debuff to self at the backline, lasts 4 turns, 1% chance to fail to give advantage or decrease stats",
+            description: "Cost 15 stamina & 25 mana\nIncreases evasion/focus/presence, gives advantage to attacks at frontline, decreases enemy accuracy or focus of attacks/debuff to self at the backline, lasts 4 turns, 1% chance to fail to give advantage or decrease stats",
             code: () => {
                 if (this.stamina < 15 || this.mana < 25) return showMessage("Not enough resources!", "error", "selection");
                 [this.previousAction[0], this.previousAction[1]] = [true, true];
                 this.stamina -= 15;
                 this.mana -= 25;
-                basicModifier("Fear of the Dark buff", "Increases evasion/focus/presence", { caster: this, target: this, duration: 5, properties: ["mystic", "mana", "buff"], stats: { evasion: 40, focus: 20, presence: 40 }, listeners: { turnEnd: true }, cancel: false, applied: true, focus: true });
-                new Modifier("Fear of the Dark", "",
-                    { caster: this, target: this, duration: 5, properties: ["mystic", "mana", "heal"], listeners: { turnEnd: true, positionChange: true, attackStart: true, resistStart: false }, cancel: false, applied: true, focus: true },
-                    function() {
-                        this.vars.caster.position === "back" ? (this.description = "Decreases enemy accuracy or focus of attacks/debuff to self at the backline, 1% chance to fail", this.vars.listeners.resistStart = true) : this.description = "Gives advantage to shadow blade attack at frontline, 1% chance to fail";
+                basicModifier("Fear of the Dark buff", "Increases evasion/focus/presence", { caster: this, target: this, duration: 5, properties: ["physical", "stamina", "mystic", "mana", "buff"], stats: { evasion: 40, focus: 20, presence: 40 }, listeners: { turnEnd: true }, cancel: false, applied: true, focus: true });
+                new Modifier("Fear of the Dark", "Gives advantage to attacks at frontline, decreases enemy accuracy or focus of attacks/debuff to self at the backline, 1% chance to fail",
+                    { caster: this, target: this, duration: 5, properties: ["physical", "stamina", "mystic", "mana", "buff", "debuff"], listeners: { turnEnd: true, attackStart: true, resistStart: true }, cancel: false, applied: true, focus: true },
+                    function() { this.vars.resistStart = this.vars.caster.position === "back" },
+                    function(context) {
+                        if (this.vars.caster.position === "back" && context.defenders.includes(this.vars.caster) && resistDebuff(this.vars.caster, context.attacker)[0] >= 2) {
+                            context.event === "attackStart"; //seperate attacker stats for each attack
+                        } else if (context.attacker === this.vars.caster) for (const defender in context.defender) if (resistDebuff(this.vars.caster, context.defender)[0] >= 2) context.calcMods.all ? context.calcMods.all.reroll = (context.calcMods.all.reroll || 0) + 1 : context.calcMods.all = { reroll: 1 };
                     }
                 )
             }
