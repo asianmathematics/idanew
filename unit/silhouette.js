@@ -58,6 +58,22 @@ const skills = {
                     }
                 )
             }
+        },
+        {
+            name: "Summon Shadow",
+            properties: ["mystic", "mana", "summon", "positional"],
+            cost: { mana: 60 },
+            description: "Cost 60 mana\nSummon shadow clone of a ally unit in the same position with 1 star stats for 6 turns",
+            target: () => this.mana < 60 ? showMessage("Not enough mana!", "error", "selection") : this.team === "player" ? selectTarget(this.actions.special, () => { playerTurn(this) }, [1, true, unitFilter("player", this.position)]) : this.actions.special.code(randTarget(unitFilter("enemy", this.position))),
+            code: (target) => {
+                this.previousAction[1] =  true;
+                this.mana -= 60;
+                const clone = cloneUnit(target);
+                for (const stat in clone.base.filter(s => s !== "position" && s !== "elements" )) clone.base[stat] = Math.ceil(clone.base[stat] * 4 / 9);
+                new Modifier("Summon Shadow", "Summon shadow clone of a ally unit in the same position with 1 star stats",
+                    { caster: this, target: this, duration: 5, properties: ["physical", "stamina", "mystic", "mana", "buff", "debuff"], listeners: { turnEnd: true, modifierEnd: true }, cancel: false, applied: true, focus: false },
+                )
+            }
         }
     ],
     basic: [
