@@ -86,7 +86,7 @@ function handleEvent(eventType, context) {
 }
 
 function removeModifier(modifier) {
-    if (modifier.vars?.passive && allUnits.includes(modifier.vars.caster)) {
+    if ((modifier.vars.passive || modifier.vars.perm) && allUnits.includes(modifier.vars.caster)) {
         if (modifier.vars.caster.hp === 0 && modifier.vars.focus) {
             currentAction.push(modifier);
             modifier.cancel();
@@ -175,7 +175,15 @@ function resetStat(unit, statList, values = [], add = true) {
             unit.mult[statList[i]] += add ? values[i] : -values[i];
         }
     }
-    for (const stat of statList) unit[stat] = unit.base[stat] + Math.max(-0.8 * unit.base[stat], unit.mult[stat]);
+    for (const stat of statList) unit[stat] = unit.base[stat] + Math.max(-0.8 * unit.base[stat], unit.mult[stat] || 0);
+}
+
+function regenerateResources(unit) {
+    if (eventState.resourceChange.length) { handleEvent('resourceChange', { effect: regenerateResources, unit, resource: [] }) }
+    if (!unit.previousAction[0]) unit.stamina = Math.min(unit.base.stamina, Math.round(unit.stamina + unit.staminaRegen));
+    if (unit.base.mana && !unit.previousAction[1]) unit.mana = Math.min(unit.base.mana, Math.round(unit.mana + unit.manaRegen));
+    if (unit.base.energy && !unit.previousAction[2]) unit.energy = Math.min(unit.base.energy, Math.round(unit.energy + unit.energyRegen));
+    unit.previousAction = [false, false, false];
 }
 
 function enemyTurn(unit) {
@@ -487,10 +495,10 @@ function damage(attacker, defenders, critical, calcMods = {}) {
         return output
 }
 
-function heal(healer, targets, calcMods = {}) {
+function heal(healer, targets, amount, calcMods = {}) {
     if (eventState.healStart.length) handleEvent('healStart', {healer, targets, calcMods});
     for (let i = 0; i < targets.length; i++) {
-        let healSingle = calcMods.targets?.[i]?.healFactor || calcMods.all?.healFactor || targets[i].healFactor;
+        let healSingle = Math.ceil(Math.max((calcMods.targets?.[i]?.healFactor || calcMods.all?.healFactor || targets[i].healFactor) * amount[i]));
         if (eventState.singleHeal.length) {
             const context = {healer, target: targets[i], healSingle, calcMods, index: [i]};
             handleEvent('singleHeal', context);

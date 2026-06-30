@@ -1,4 +1,4 @@
-export class Unit {
+class Unit {
     constructor(name, stat, elements, actionsInit, passivesInit) {
         this.name = name;
         this.base = {
@@ -30,17 +30,18 @@ export class Unit {
             staminaRegen: 0,
         };
         if (stat[13]) { 
-            this.base.mana = stat[13];
+            this.mana = this.base.mana = stat[13];
             this.base.manaRegen = stat[14];
             this.mult.manaRegen = 0;
         }
         if (stat[15]) { 
-            this.base.energy = stat[15];
+            this.energy = this.base.energy = stat[15];
             this.base.energyRegen = stat[16];
             this.mult.energyRegen = 0;
         }
         this.elements = this.base.elements;
         this.hp = this.base.hp;
+        this.stamina = this.base.stamina;
         this.skills = {};
         this.previousAction = [false, false, false];
         this.stun = false;
@@ -48,3 +49,40 @@ export class Unit {
         this.actionsInit = actionsInit;
     }
 }
+
+function createUnit(unit, team) {
+    const newUnit = cloneUnit(unit);
+    let name = unit.name;
+    let dupe = 1;
+    while (allUnits.filter(obj => obj.name.includes(name)).some(obj => obj.name === name)) { name = `${unit.name} ${++dupe}` }
+    newUnit.name = name;
+    if (newUnit.position === "mid") newUnit.position = "back";
+    newUnit.team = team;
+    allUnits.push(newUnit);
+    newUnit.actionsInit();
+    newUnit.passivesInit?.();
+    newUnit.timer = 1000;
+}
+
+function cloneUnit(unit) {
+    const newUnit = {
+        name: unit.name,
+        description: unit?.description,
+        previousAction: [false, false, false],
+        base: {...unit.base},
+        mult: {...unit.mult},
+        skills: {},
+        elements: [...unit.base.elements],
+        stun: false,
+        cancel: false,
+        learnedSkills: []
+    };
+    newUnit.actionsInit = unit.actionsInit;
+    if (unit.passivesInit) {
+        newUnit.passives = {};
+        newUnit.passivesInit = unit.passivesInit;
+    }
+    for (const stat in newUnit.base) newUnit[stat] = newUnit.base[stat];
+    return newUnit;
+}
+export { Unit, createUnit, cloneUnit }

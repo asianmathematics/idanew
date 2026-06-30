@@ -1,7 +1,7 @@
 import { attack, basicModifier, currentAction, eventState, logAction, Modifier, modifiers, randTarget, resistDebuff, unitFilter } from '../combatDictionary.js';
 import { Unit } from './unit.js';
 
-export const FourArcher = new Unit("4 (Archer)", [700, 24, 16, 50, 180, 70, 160, 85, 160, "back", 60, 40, 4, 160, 16]);
+export const FourArcher = new Unit("4 (Archer)", [800, 24, 16, 50, 80, 70, 140, 85, 160, "back", 110, 40, 4, 160, 32]);
 
 const skills = {
     special: [
@@ -28,7 +28,7 @@ const skills = {
                 this.previousAction[1] = true;
                 this.mana -= 20;
                 new Modifier("Unnatural Luck", "Rolls all attacks/debuffs with advantage and opponent's attacks/debuffs to self has disadvantage, 1% chance to fail to give disadvantage.",
-                    { caster: this, target: this, duration: 2, properties: ["mystic", "mana", "buff", "debuff"], listeners: { turnEnd: true, attackStart: true, resistStart: true }, cancel: false, applied: true, focus: false },
+                    { caster: this, target: this, duration: 2, properties: ["mystic", "buff", "debuff"], listeners: { turnEnd: true, attackStart: true, resistStart: true }, cancel: false, applied: true, focus: false },
                     function() {},
                     function(context) {
                         if (context.event === "attackStart" || context.event === "resistStart") {
@@ -68,14 +68,11 @@ const skills = {
                 this.previousAction[1] = true;
                 this.stamina -= 10;
                 new Modifier("Lazing Around", "Reduces speed and regen mana.",
-                    { caster: this, target: this, duration: 1, properties: ["physical", "stamina", "mana", "debuff", "resource"], stats: { speed: -10 }, listeners: { turnStart: true }, cancel: false, applied: true, focus: false, penalty: true },
+                    { caster: this, target: this, duration: 1, properties: ["physical", "mana", "debuff", "resource"], stats: { speed: -10 }, listeners: { turnStart: true }, cancel: false, applied: true, focus: false, penalty: true },
                     function() { resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats)) },
                     function(context) {
                         if (context.unit === this.vars.caster) {
-                            if (this.vars.applied) {
-                                if (eventState.resourceChange.length) handleEvent('resourceChange', { effect: this, unit: this.vars.target, resource: ['mana'], value: [this.vars.target.base.manaRegen * 2.5] });
-                                this.vars.target.mana = Math.min(this.vars.target.base.mana, this.vars.target.mana + this.vars.target.base.manaRegen * 2.5);
-                            }
+                            if (this.vars.applied) resourceChange(this.vars.caster, { mana: this.vars.caster.manaRegen * 2.5 });
                             this.vars.duration--;
                         }
                         return this.vars.duration <= 0;
@@ -102,7 +99,7 @@ const skills = {
                 this.previousAction[1] = true;
                 this.mana -= 40;
                 new Modifier("Rebound Arc", "Missed attack have a chance to hit a random enemy and non-crit guaranteed hits can make an attack to pierce a random enemy",
-                    { caster: this, target: this, duration: 5, properties: ["mystic", "mana", "buff"], listeners: { turnEnd: true, singleAttack: true, singleDamage: true }, cancel: false, applied: true, focus: false, attacking: false },
+                    { caster: this, target: this, duration: 5, properties: ["mystic", "buff"], listeners: { turnEnd: true, singleAttack: true, singleDamage: true }, cancel: false, applied: true, focus: false, attacking: false },
                     function() {},
                     function(context) {
                         if (this.vars.attacking) return;
@@ -146,7 +143,7 @@ const skills = {
                 if (this.mana < 40) return showMessage("Not enough mana!", "error", "selection");
                 this.previousAction[1] = true;
                 logAction(`${this.name} boosted ally luck!`, "action");
-                for (const unit of unitFilter(this.team, '', false).filter(u => u !== this)) basicModifier("Lucky Aura", "Increases accuracy/evasion/focus/resist/presence", { caster: this, target: unit, duration: 2, properties: ["mystic", "mana", "buff"], stats: { accuracy: 25, evasion: 45, focus: 35, resist: 40, presence: 40 }, listeners: { turnStart: true }, cancel: false, applied: true, focus: false });
+                for (const unit of unitFilter(this.team, '', false).filter(u => u !== this)) basicModifier("Lucky Aura", "Increases accuracy/evasion/focus/resist/presence", { caster: this, target: unit, duration: 2, properties: ["mystic", "buff"], stats: { accuracy: 25, evasion: 45, focus: 35, resist: 40, presence: 40 }, listeners: { turnStart: true }, cancel: false, applied: true, focus: false });
             }
         },
         {
@@ -158,9 +155,9 @@ const skills = {
                 this.previousAction[1] = true;
                 logAction(`${this.name} hits a luck arrow!`, "action");
                 attack(this, target, 1, { max: [[.5]] });
-                let will = resistDebuff(this.vars.caster, [this.vars.target]);
+                let will = resistDebuff(this, target);
                 new Modifier("Luck Arrow buff", "Gives advantage to next few attacks/debuffs",
-                    { caster: this, target: this, duration: will[0] < 2 ? 0 : will[0] > 99 ? 7 : Math.ceil(will[0]/33), properties: ["mystic", "mana", "buff"], listeners: { attackStart: true, resistStart: true }, cancel: false, applied: true, focus: false },
+                    { caster: this, target: this, duration: will[0] < 2 ? 0 : will[0] > 99 ? 7 : Math.ceil(will[0]/33), properties: ["mystic", "buff"], listeners: { attackStart: true, resistStart: true }, cancel: false, applied: true, focus: false },
                     function() { return !this.vars.duration },
                     function(context) {
                         if (this.vars.applied && context.attacker === this.vars.caster) this.vars.duration--, (context.calcMods.all ??= { reroll: 0 }).reroll++;
@@ -186,7 +183,7 @@ const skills = {
                 );
                 let will = resistDebuff(this.vars.caster, [this.vars.target]);
                 new Modifier("Luck Arrow debuff", "Gives disadvantage to target's next few attacks/debuffs",
-                    { caster: this, target: target, duration: will[0] > 99 ? 7 : Math.floor(will[0]/25), properties: ["mystic", "mana", "debuff"], listeners: { attackStart: true, resistStart: true }, cancel: false, applied: true, focus: false },
+                    { caster: this, target: target, duration: will[0] > 99 ? 7 : Math.floor(will[0]/25), properties: ["mystic", "debuff"], listeners: { attackStart: true, resistStart: true }, cancel: false, applied: true, focus: false },
                     function() { return !this.vars.duration },
                     function(context) {
                         if (this.vars.applied && context.attacker === this.vars.target) this.vars.duration--, context.calcMods.all ? context.calcMods.all.reroll = (context.calcMods.all.reroll || 0) - 1 : context.calcMods.all = { reroll: -1 };
@@ -234,7 +231,7 @@ const skills = {
                 this.previousAction[1] = true;
                 logAction(`${this.name} fires a luck arrow.`, "action");
                 if (attack(this, target, 1)[0] > 0) {
-                    let will = resistDebuff(this.vars.caster, [this.vars.target]);
+                    let will = resistDebuff(this, target);
                     new Modifier("Luck Arrow buff", "Gives advantage to next few attacks/debuffs",
                         { caster: this, target: this, duration: will[0] > 99 ? 7 : Math.ceil(will[0]/25), properties: ["mystic", "buff"], listeners: { attackStart: true, resistStart: true }, cancel: false, applied: true, focus: false },
                         function() { return !this.vars.duration },
@@ -260,7 +257,7 @@ const skills = {
                             }
                         }
                     );
-                    let will = resistDebuff(this.vars.caster, [this.vars.target]);
+                    let will = resistDebuff(this, target);
                     new Modifier("Luck Arrow debuff", "Gives disadvantage to target's next few attacks/debuffs",
                         { caster: this, target: target, duration: will[0] > 99 ? 4 : Math.floor(will[0]/33), properties: ["mystic", "debuff"], listeners: { attackStart: true, resistStart: true }, cancel: false, applied: true, focus: false },
                         function() { return !this.vars.duration },
@@ -307,14 +304,11 @@ const skills = {
             description: "Reduces speed until next turn then regain mana.",
             code: () => {
                 new Modifier("Lazing Around", "Reduces speed and regen mana.",
-                    { caster: this, target: this, duration: 1, properties: ["mana", "debuff", "resource"], stats: { speed: -10 }, listeners: { turnStart: true }, cancel: false, applied: true, focus: false, penalty: true },
+                    { caster: this, target: this, duration: 1, properties: ["physical", "mana", "debuff", "resource"], stats: { speed: -10 }, listeners: { turnStart: true }, cancel: false, applied: true, focus: false, penalty: true },
                     function() { resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats)) },
                     function(context) {
                         if (context.unit === this.vars.caster) {
-                            if (this.vars.applied) {
-                                if (eventState.resourceChange.length) handleEvent('resourceChange', { effect: this, unit: this.vars.target, resource: ['mana'], value: [this.vars.target.base.manaRegen * 1.5] });
-                                this.vars.target.mana = Math.min(this.vars.target.base.mana, this.vars.target.mana + this.vars.target.base.manaRegen * 1.5);
-                            }
+                            if (this.vars.applied) resourceChange(this.vars.caster, { mana: this.vars.caster.manaRegen * 1.5 });
                             this.vars.duration--;
                         }
                         return this.vars.duration <= 0;
@@ -346,11 +340,10 @@ const skills = {
         {
             name: "Unnatural Luck",
             properties: ["mystic", "mana", "buff", "debuff"],
-            cost: { mana: 40 },
-            description: "Reduce max mana by 40\nRolls all attacks/debuffs with advantage and opponent's attacks/debuffs to self has chance to debuff to disadvantage until end of next turn.",
+            description: "Reduce max mana by 40 and base mana regen by 8\nRolls all attacks/debuffs with advantage and opponent's attacks/debuffs to self has chance to debuff to disadvantage until end of next turn.",
             code: () => {
-                this.previousAction[1] = true;
-                this.mana -= 40;
+                this.base.mana -= 40;
+                this.base.manaRegen -= 8;
                 new Modifier("Unnatural Luck", "Rolls all attacks/debuffs with advantage and opponent's attacks/debuffs to self has chance to debuff to disadvantage.",
                     { caster: this, target: this, properties: ["mystic", "mana", "buff", "debuff"], listeners: { attackStart: true, resistStart: true }, cancel: false, applied: true, focus: false },
                     function() {},
@@ -386,14 +379,9 @@ const skills = {
             description: "Reduce speed and regen mana each turn.",
             code: () => {
                 new Modifier("Lazing Around", "Reduces speed and regen mana.",
-                    { caster: this, target: this, properties: ["mana", "debuff", "resource"], stats: { speed: -20 }, listeners: { turnStart: true }, cancel: false, applied: true, focus: false, penalty: true },
+                    { caster: this, target: this, properties: ["physical", "mana", "debuff", "resource"], stats: { speed: -20 }, listeners: {}, cancel: false, applied: true, focus: false, penalty: true },
                     function() { resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats)) },
-                    function(context) {
-                        if (context.unit === this.vars.caster  && this.vars.applied) {
-                            if (eventState.resourceChange.length) handleEvent('resourceChange', { effect: this, unit: this.vars.target, resource: ['mana'], value: [this.vars.target.base.manaRegen] });
-                            this.vars.target.mana = Math.min(this.vars.target.base.mana, this.vars.target.mana + this.vars.target.base.manaRegen);
-                        }
-                    },
+                    function(context) { if (context.unit === this.vars.caster  && this.vars.applied) resourceChange(this.vars.caster, { mana: this.vars.caster.manaRegen }) },
                     function() {
                         if (this.vars.cancel && this.vars.applied) {
                             resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats), false);
@@ -421,13 +409,11 @@ const skills = {
                             this.vars.attacking = true;
                             let target = randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false));
                             if (resistDebuff(this.vars.caster, target)[0] > 70) crit(this.vars.caster, target, [[this.accuracy/4]]);
-                            if (eventState.resourceChange.length) handleEvent('resourceChange', { effect: this, unit: this.vars.caster, resource: ['mana'], value: [-10] });
-                            this.vars.caster.mana -= 10;
+                            resourceChange(this.vars.caster, { mana: -10 });
                         } else if (context.event === "singleDamage" && context.attacker === this.vars.caster && (currentAction.at(-2).properties?.includes("auto-hit") || currentAction.at(-2).vars?.properties?.includes("auto-hit")) && context.critical < 1) {
                             this.vars.attacking = true;
                             attack(this.vars.caster, randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false)), 1, context.calcMods)
-                            if (eventState.resourceChange.length) handleEvent('resourceChange', { effect: this, unit: this.vars.caster, resource: ['mana'], value: [-10] });
-                            this.vars.caster.mana -= 10;
+                            resourceChange(this.vars.caster, { mana: -10 });
                         }
                         this.vars.attacking = false;
                     },
@@ -477,10 +463,10 @@ const skills = {
         {
             name: "Luck Arrow",
             properties: ["mystic", "mana", "buff", "debuff"],
-            cost: { mana: 40 },
-            description: "Reduce max mana by 40\nOn hit with any attack, chance to give self advantage to next few attacks/debuffs and chance to give disadvantage to target's next few attacks/debuffs",
+            description: "Reduce max mana by 40 and base mana regen by 8\nOn hit with any attack, chance to give self advantage to next few attacks/debuffs and chance to give disadvantage to target's next few attacks/debuffs",
             code: () => {
                 this.base.mana -= 40;
+                this.base.manaRegen -= 8;
                 new Modifier("Luck Arrow", "On hit with any attack, chance to give self advantage to next few attacks/debuffs and chance to give disadvantage to target's next few attacks/debuffs",
                     { caster: this, target: this, properties: ["mystic", "mana", "buff", "debuff"], listeners: { singleDamage: true }, cancel: false, applied: true, focus: false },
                     function() {},
@@ -565,10 +551,10 @@ const skills = {
             name: "Unnatural Luck",
             properties: ["mystic", "mana", "buff", "debuff"],
             cost: { mana: 40 },
-            description: "Reduce max mana by 40\nRolls all attacks/debuffs with advantage and opponent's attacks/debuffs to self has chance to debuff to disadvantage until end of next turn.",
+            description: "Reduce max mana by 40 and base mana regen by 8\nRolls all attacks/debuffs with advantage and opponent's attacks/debuffs to self has chance to debuff to disadvantage until end of next turn.",
             code: () => {
-                this.previousAction[1] = true;
-                this.mana -= 40;
+                this.base.mana -= 40;
+                this.base.manaRegen -= 8;
                 new Modifier("Unnatural Luck", "Rolls all attacks/debuffs with advantage and opponent's attacks/debuffs to self has chance to debuff to disadvantage.",
                     { caster: this, target: this, properties: ["mystic", "mana", "buff", "debuff"], listeners: { attackStart: true, resistStart: true }, cancel: false, applied: true, focus: false },
                     function() {},
@@ -604,14 +590,9 @@ const skills = {
             description: "Reduce speed and regen mana each turn.",
             code: () => {
                 new Modifier("Lazing Around", "Reduces speed and regen mana.",
-                    { caster: this, target: this, properties: ["mana", "debuff", "resource"], stats: { speed: -10 }, listeners: { turnStart: true }, cancel: false, applied: true, focus: false, penalty: true },
+                    { caster: this, target: this, properties: ["physical", "mana", "debuff", "resource"], stats: { speed: -10 }, listeners: {}, cancel: false, applied: true, focus: false, penalty: true },
                     function() { resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats)) },
-                    function(context) {
-                        if (context.unit === this.vars.caster  && this.vars.applied) {
-                            if (eventState.resourceChange.length) handleEvent('resourceChange', { effect: this, unit: this.vars.target, resource: ['mana'], value: [this.vars.target.base.manaRegen * 1.5] });
-                            this.vars.target.mana = Math.min(this.vars.target.base.mana, this.vars.target.mana + this.vars.target.base.manaRegen * 1.5);
-                        }
-                    },
+                    function(context) { if (context.unit === this.vars.caster && this.vars.applied) resourceChange(this.vars.caster, { mana: this.vars.caster.manaRegen * 1.5 }) },
                     function() {
                         if (this.vars.cancel && this.vars.applied) {
                             resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats), false);
@@ -632,7 +613,7 @@ const skills = {
                 const target = randTarget(unitFilter(this.team, '', false), 1, true);
                 logAction(`${this.name} increased the luck of ${target[0].name}`, "buff")
                 new Modifier("Lucky Aura", "Increases accuracy/evasion/focus/resist/presence", 
-                    { caster: this, target: null, duration: 2, properties: ["mystic", "mana", "buff"], stats: { accuracy: 25, evasion: 45, focus: 35, resist: 40, presence: 40 }, listeners: { turnStart: true }, cancel: false, applied: true, focus: false },
+                    { caster: this, target: null, duration: 2, properties: ["mystic", "buff"], stats: { accuracy: 25, evasion: 45, focus: 35, resist: 40, presence: 40 }, listeners: { turnStart: true }, cancel: false, applied: true, focus: false },
                     function() { this.vars.target = randTarget(unitFilter(this.team, '', false).filter(u => u !== this.vars.caster)) },
                     function (context) { if (context.unit === this.vars.caster) this.changeTarget(randTarget(unitFilter(this.team, '', false).filter(u => u !== this.vars.caster), 1, true)) },
                     function() {
@@ -651,9 +632,10 @@ const skills = {
             name: "Luck Arrow",
             properties: ["mystic", "mana", "buff", "debuff"],
             cost: { mana: 40 },
-            description: "Reduce max mana by 40\nOn hit with any attack, gives self advantage to next few attacks/debuffs depending on chance and chance to give disadvantage to target's next few attacks/debuffs, 1% chance to fail to give advantage",
+            description: "Reduce max mana by 40 and base mana regen by 8\nOn hit with any attack, gives self advantage to next few attacks/debuffs depending on chance and chance to give disadvantage to target's next few attacks/debuffs, 1% chance to fail to give advantage",
             code: () => {
                 this.base.mana -= 40;
+                this.base.manaRegen -= 8;
                 new Modifier("Luck Arrow", "On hit with any attack, gives self advantage to next few attacks/debuffs depending on chance and chance to give disadvantage to target's next few attacks/debuffs, 1% chance to fail to give advantage",
                     { caster: this, target: this, properties: ["mystic", "mana", "buff", "debuff"], listeners: { singleDamage: true }, cancel: false, applied: true, focus: false },
                     function() {},

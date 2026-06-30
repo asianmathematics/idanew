@@ -1,7 +1,7 @@
 import { unitFilter } from '../combatDictionary.js';
 import { Unit } from './unit.js';
 
-export const Mannequin = new Unit("Mannnequin", [800, 45, 22, 140, 130, 150, 70, 145, 50, "mid", 70, 100, 10]);
+export const Mannequin = new Unit("Mannnequin", [800, 45, 22, 140, 130, 150, 70, 145, 50, "mid", 120, 100, 10]);
 
 const skills = {
     special: [
@@ -15,8 +15,8 @@ const skills = {
                 this.stamina -= 20;
                 this.previousAction[0] = true;
                 logAction(`${this.name} reaches for an ideal!`, "buff");
-                basicModifier("A Wish To Be An Artificial buff", "Accuracy, focus, and speed increase", { caster: this, target: this, duration: 6, properties: ["physical", "stamina", "buff"], stats: { accuracy: 60, focus: 50, speed: 40 }, listeners: {turnEnd: true}, cancel: false, applied: true, focus: true });
-                basicModifier("A Wish To Be An Artificial penalty", "Speed and presence decrease", { caster: this, target: this, duration: 6, properties: ["physical", "stamina", "penalty"], stats: { resist: -25, presence: -35 }, listeners: {turnEnd: true}, cancel: false, applied: true, focus: true, penalty: true });
+                basicModifier("A Wish To Be An Artificial buff", "Accuracy, focus, and speed increase", { caster: this, target: this, duration: 6, properties: ["physical", "buff"], stats: { accuracy: 60, focus: 50, speed: 40 }, listeners: {turnEnd: true}, cancel: false, applied: true, focus: true });
+                basicModifier("A Wish To Be An Artificial penalty", "Speed and presence decrease", { caster: this, target: this, duration: 6, properties: ["physical", "penalty"], stats: { resist: -25, presence: -35 }, listeners: {turnEnd: true}, cancel: false, applied: true, focus: true, penalty: true });
             }
         },
         {
@@ -29,11 +29,8 @@ const skills = {
                 this.previousAction[0] = true;
                 this.stamina -= 50;
                 logAction(`${this.name} provides emergency aid to the entire ${this.position}line!`, "heal");
-                for (let target of unitFilter(this.team, this.position)) {
-                    if (eventState.resourceChange.length) handleEvent('resourceChange', { effect: this.actions.special, unit: target, resource: ['hp'], value: [2 * target.healFactor] });
-                    if (target.hp === 0 && eventState.unitChange.length) handleEvent('unitChange', {type: 'revive', unit: target});
-                    target.hp = Math.min(target.base.hp, target.hp + 2 * target.healFactor);
-                }
+                const targets = unitFilter(this.team, this.position);
+                heal(this, targets, targets.map(t => 2 * t.healFactor));
             }
         },
         {
@@ -46,8 +43,8 @@ const skills = {
                 this.stamina -= 20;
                 this.previousAction[0] = true;
                 logAction(`${this.name} reaches for an ideal!`, "buff");
-                basicModifier("Ex-Revolutionary buff", "attack, accuracy, and focus increase", { caster: this, target: this, duration: 6, properties: ["physical", "stamina", "buff"], stats: { attack: 40, accuracy: 40, focus: 30 }, listeners: {turnEnd: true}, cancel: false, applied: true, focus: true });
-                basicModifier("Ex-Revolutionary penalty", "Defense, evasion, resist, and presence decrease", { caster: this, target: this, duration: 6, properties: ["physical", "stamina", "penalty"], stats: { defense: -10, evasion: -25, resist: -50, presence: -50 }, listeners: {turnEnd: true}, cancel: false, applied: true, focus: true, penalty: true });
+                basicModifier("Ex-Revolutionary buff", "attack, accuracy, and focus increase", { caster: this, target: this, duration: 6, properties: ["physical", "buff"], stats: { attack: 40, accuracy: 40, focus: 30 }, listeners: {turnEnd: true}, cancel: false, applied: true, focus: true });
+                basicModifier("Ex-Revolutionary penalty", "Defense, evasion, resist, and presence decrease", { caster: this, target: this, duration: 6, properties: ["physical", "penalty"], stats: { defense: -10, evasion: -25, resist: -50, presence: -50 }, listeners: {turnEnd: true}, cancel: false, applied: true, focus: true, penalty: true });
             }
         },
         {
@@ -86,7 +83,7 @@ const skills = {
                 this.stamina -= 50;
                 this.previousAction[0] = true;
                 new Modifier("Reload", `Ignores reload mechanic`,
-                    { caster: this, target: this, duration: 6, properties: ["physical", "stamina", "pseudo-resource"], listeners: { turnStart: true }, cancel: false, applied: true, focus: true},
+                    { caster: this, target: this, duration: 6, properties: ["physical", "pseudo-resource"], listeners: { turnStart: true }, cancel: false, applied: true, focus: true},
                     function() {
                         this.custom?.dualWield !== undefined && (this.custom.dualWield = true);
                         this.custom?.snipe !== undefined && (this.custom.snipe = true);
@@ -152,9 +149,9 @@ const skills = {
                 let target = unitFilter(this.team, this.position).reduce((lowest, unit) => unit.hp / unit.base.hp < lowest.hp / lowest.base.hp ? unit : lowest);
                 if (eventState.targets.length) handleEvent('targets', { selectedTargets: target, count: 1, trueRand: false });
                 logAction(`${this.name} provides emergency aid to ${target.name}!`, "heal");
-                if (eventState.resourceChange.length) handleEvent('resourceChange', { effect: this.actions.basic, unit: target, resource: ['hp'], value: [2 * target.healFactor] });
-                if (target.hp === 0 && eventState.unitChange.length) handleEvent('unitChange', {type: 'revive', unit: target});
-                target.hp = Math.min(target.base.hp, target.hp + 2 * target.healFactor);
+                const revive = target.hp === 0;
+                heal(this, [target], [2 * target.healFactor]);
+                if (revive && eventState.unitChange.length) handleEvent('unitChange', {type: 'revive', unit: target});
             }
         },
         {
@@ -208,9 +205,9 @@ const skills = {
                 let target = unitFilter(this.team, this.position).reduce((lowest, unit) => unit.hp / unit.base.hp < lowest.hp / lowest.base.hp ? unit : lowest);
                 if (eventState.targets.length) handleEvent('targets', { selectedTargets: target, count: 1, trueRand: false });
                 logAction(`${this.name} provides some aid to ${target.name}!`, "heal");
-                if (eventState.resourceChange.length) handleEvent('resourceChange', { effect: this.actions.basic, unit: target, resource: ['hp'], value: [target.healFactor] });
-                if (target.hp === 0 && eventState.unitChange.length) handleEvent('unitChange', {type: 'revive', unit: target});
-                target.hp = Math.min(target.base.hp, target.hp + target.healFactor);
+                const revive = target.hp === 0;
+                heal(this, [target], [target.healFactor]);
+                if (revive && eventState.unitChange.length) handleEvent('unitChange', {type: 'revive', unit: target});
             }
         },
         {
@@ -287,10 +284,10 @@ const skills = {
         {
             name: "Emergency Aid",
             properties: ["heal", "positional"],
-            cost: { stamina: 20 },
-            description: "Reduce max stamina by 20\nHeals lowest hp ally (around ~5% max hp) in the same position times number of alive allies in same position",
+            description: "Reduce max stamina by 20 and base stamina regen by 2\nHeals lowest hp ally (around ~5% max hp) in the same position times number of alive allies in same position",
             code: () => {
-                this.base.stamina = Math.max(0, this.base.stamina - 20);
+                this.base.stamina -= 20;
+                this.base.staminaRegen -= 2;
                 new Modifier("Emergency Aid", `Heals lowest hp ally (around ~5% max hp) in the same position times number of alive allies in same position`,
                     { caster: this, target: this, properties: ["physical", "stamina", "heal", "positional"], listeners: { turnStart: true, unitChange: false }, cancel: false, applied: true, focus: true, passive: true },
                     function() {},
@@ -299,9 +296,9 @@ const skills = {
                         else if (this.vars.applied && context.unit === this.vars.target) {
                             let target = unitFilter(this.vars.target.team, this.vars.target.position).reduce((lowest, unit) => unit.hp / unit.base.hp < lowest.hp / lowest.base.hp ? unit : lowest);
                             if (eventState.targets.length) { handleEvent('targets', { selectedTargets: target, count: 1, trueRand: false }) };
-                            let count = unitFilter(this.vars.target.team, this.vars.target.position).filter(u => u.hp > 0).length - 1;
-                            if (eventState.resourceChange.length) handleEvent('resourceChange', { effect: this, unit: target, resource: ['hp'], value: [Math.round(target.healFactor * count / 2)] });
-                            target.hp = Math.min(target.hp + Math.round(target.healFactor * count / 2), target.base.hp);
+                            let count = unitFilter(this.vars.target.team, this.vars.target.position).filter(u => u.hp > 0).length - 1, revive = target.hp === 0;
+                            heal(this.vars.caster, [target], [Math.round(target.healFactor * count / 2)]);
+                            if (revive && eventState.unitChange.length) handleEvent('unitChange', {type: 'revive', unit: target});
                             logAction(`${this.vars.caster.name} healed ${this.vars.caster.team === "player" ? ` ${Math.round(target.healFactor * count / 2)} HP to` : ''}${target.name}!`, "buff");
                         }
                     },
@@ -328,10 +325,10 @@ const skills = {
         {
             name: "Ex-Revolutionary",
             properties: ["physical", "buff", "penalty"],
-            cost: { stamina: 10 },
-            description: "Reduce max stamina by 10\nIncreased attack/accuracy/focus and decreased defense/evasion/resist/presence.",
+            description: "Reduce max stamina by 10 and base stamina regen by 1\nIncreased attack/accuracy/focus and decreased defense/evasion/resist/presence.",
             code: () => {
-                this.base.stamina = Math.max(0, this.base.stamina - 10);
+                this.base.stamina -= 10;
+                this.base.staminaRegen -= 1;
                 new Modifier("Ex-Revolutionary buff", "attack, accuracy, and focus increase", { caster: this, target: this, properties: ["physical", "buff"], stats: { attack: 20, accuracy: 20, focus: 15 }, cancel: false, applied: true, focus: true },
                     function() { resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats)) },
                     function(context) {},
@@ -371,16 +368,8 @@ const skills = {
                     function() { this.vars.caster.custom = { dualWield: true, snipe: true } },
                     function(context) {
                         if (context.unit === this.vars.caster && this.vars.applied) {
-                            if (Object.hasOwn(this.vars.caster.custom, dualWield) && this.vars.caster.stamina >= 20) {
-                                if (eventState.resourceChange.length) handleEvent('resourceChange', { effect: this, unit: this.vars.caster, resource: ['stamina'], value: [-20] });
-                                this.vars.caster.stamina -= 20;
-                                this.vars.caster.custom.dualWield = true;
-                            }
-                            if (Object.hasOwn(this.vars.caster.custom, snipe) && this.vars.caster.stamina >= 20) {
-                                if (eventState.resourceChange.length) handleEvent('resourceChange', { effect: this, unit: this.vars.caster, resource: ['stamina'], value: [-20] });
-                                this.vars.caster.stamina -= 20;
-                                this.vars.caster.custom.snipe = true;
-                            }
+                            if (!this.vars.caster.custom.dualWield) this.vars.caster.custom.dualWield = resourceChange(this.vars.caster, { stamina: -20 });
+                            if (!this.vars.caster.custom.snipe) this.vars.caster.custom.snipe = resourceChange(this.vars.caster, { stamina: -20 });
                         }
                     },
                     function(cancel, temp) {
@@ -438,7 +427,6 @@ const skills = {
         {
             name: "Emergency Aid",
             properties: ["heal", "positional"],
-            cost: { stamina: 20 },
             description: "Reduce max stamina by 20\nHeals lowest hp ally (around ~7.5% max hp) in the same position times number of alive allies in same position",
             code: () => {
                 this.base.stamina = Math.max(0, this.base.stamina - 20);
@@ -449,9 +437,9 @@ const skills = {
                         if (this.vars.listeners.unitChange && context.unit === this.vars.target && context.type === "revive") this.cancel(false);
                         else if (this.vars.applied && context.unit === this.vars.target) {
                             let target = unitFilter(this.vars.target.team, this.vars.target.position).reduce((lowest, unit) => unit.hp / unit.base.hp < lowest.hp / lowest.base.hp ? unit : lowest);
-                            let count = unitFilter(this.vars.target.team, this.vars.target.position).filter(u => u.hp > 0).length - 1;
-                            if (eventState.resourceChange.length) handleEvent('resourceChange', { effect: this, unit: target, resource: ['hp'], value: [Math.round(target.healFactor * count * 0.75)] });
-                            target.hp = Math.min(target.hp + Math.round(target.healFactor * count * 0.75), target.base.hp);
+                            let count = unitFilter(this.vars.target.team, this.vars.target.position).filter(u => u.hp > 0).length - 1, revive = target.hp === 0;
+                            heal(this.vars.caster, [target], [Math.round(target.healFactor * count * .75)]);
+                            if (revive && eventState.unitChange.length) handleEvent('unitChange', {type: 'revive', unit: target});
                             logAction(`${this.vars.caster.name} healed ${this.vars.caster.team === "player" ? ` ${Math.round(target.healFactor * count * 0.75)} HP to` : ''}${target.name}!`, "buff");
                         }
                     },
