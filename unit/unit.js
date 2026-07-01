@@ -62,12 +62,13 @@ function createUnit(unit, team) {
     newUnit.actionsInit();
     newUnit.passivesInit?.();
     newUnit.timer = 1000;
+    return newUnit;
 }
 
 function cloneUnit(unit) {
     const newUnit = {
         name: unit.name,
-        description: unit?.description,
+        description: unit.description,
         previousAction: [false, false, false],
         base: {...unit.base},
         mult: {...unit.mult},

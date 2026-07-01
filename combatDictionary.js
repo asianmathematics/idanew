@@ -13,6 +13,10 @@ events.forEach(type => eventState[type] = []);
 
 function setUnit(unit) { currentUnit = unit }
 
+function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)) }
+
+function unitFilter(team, position, downed = null) { return allUnits.filter(unit => (team === '' || unit.team === team) && (position === "mid" ? unit.base.position === "mid" : position === '' || unit.position === position) && (downed === null ? true : (downed ? unit.hp <= 0 : unit.hp > 0))) }
+
 class Modifier {
     constructor(name, description, vars, initFunc, onTurnFunc, cancelFunc, changeTargetFunc) {
         this.name = name;
@@ -21,12 +25,28 @@ class Modifier {
         this.init = initFunc;
         this.onTurn = onTurnFunc;
         this.cancel = (cancel = true, temp = false) => {
-            if (eventState.cancel.length && !temp) handleEvent('cancel', { modifier: this });
+            if (eventState.cancel.length && !temp) handleEvent('cancel', { modifier: this, cancel });
             cancel ? this.vars.cancel++ : this.vars.cancel--;
-            cancelFunc.apply(this, [cancel, temp]);
+            if (cancelFunc) (cancelFunc).apply(this, [cancel, temp]);
+            else {
+                const isActivating = !cancel && !this.vars.applied, isDeactivating = cancel && this.vars.applied;
+                if (isDeactivating || isActivating) {
+                    if (this.vars.stats) resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats), false);
+                    if (!temp && this.vars.cancelListeners) {
+                        if (this.vars.cancelListeners) {
+                        for (const listener of this.vars.cancelListeners) {
+                            this.vars.listeners[listener] = isActivating;
+                            if (isActivating) eventState[listener].push(this);
+                            else if (isDeactivating) eventState[listener].splice(eventState[listener].indexOf(this), 1);
+                        }
+                    }
+                    }
+                    this.vars.applied = isActivating;
+                }
+            }
         }
         this.changeTarget = changeTargetFunc || this.vars.targets ? ((remove = [], add = []) => {
-            if (remove.length - add.length >= this.vars.targets.length) removeModifier(this);
+            if (!add.length && remove.length === this.vars.targets.length) removeModifier(this);
             else {
                 if (this.vars.applied) {
                     this.cancel(true, true);
@@ -52,7 +72,7 @@ class Modifier {
         if (this.vars.listeners) for (const eventType in this.vars.listeners) if (this.vars.listeners[eventType]) eventState[eventType].push(this);
         if (eventState.modifierStart.length) handleEvent('modifierStart', { modifier: this });
         currentAction.push(this);
-        this.init() ? removeModifier(this) : this.vars.start = true;
+        this.init() ? removeModifier(this) : this.vars.cancel = !(this.vars.applied = this.vars.start = true);
         currentAction.pop();
         window.updateModifiers();
     }
@@ -87,7 +107,7 @@ function handleEvent(eventType, context) {
 
 function removeModifier(modifier) {
     if ((modifier.vars.passive || modifier.vars.perm) && allUnits.includes(modifier.vars.caster)) {
-        if (modifier.vars.caster.hp === 0 && modifier.vars.focus) {
+        if (modifier.vars.caster.hp === 0 && modifier.vars.focus && !modifier.vars.perm) {
             currentAction.push(modifier);
             modifier.cancel();
             currentAction.pop();
@@ -105,47 +125,23 @@ function removeModifier(modifier) {
     if (index !== -1) modifiers.splice(index, 1);
 }
 
-function basicModifier(name, description, vari, changeFunc) {
-    if (vari.target) {
-        return new Modifier(name, description, vari,
-            function() { resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats)) },
-            function(context) {
-                if (this.vars.target === context.unit) this.vars.duration--;
-                return this.vars.duration <= 0;
-            },
-            function() {
-                if (this.vars.cancel && this.vars.applied) {
-                    resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats), false);
-                    this.vars.applied = false;
-                } else if (!this.vars.cancel && !this.vars.applied) {
-                    resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats));
-                    this.vars.applied = true;
-                }
-            }, changeFunc
-        );
-    } else {
-        return new Modifier(name, description, vari,
-            function() { for (const unit of this.vars.targets) { resetStat(unit, Object.keys(this.vars.stats), Object.values(this.vars.stats)) } },
-            function(context) {
-                if (this.vars.caster === context.unit) this.vars.duration--;
-                return this.vars.duration <= 0;
-            },
-            function() {
-                if (this.vars.cancel && this.vars.applied) {
-                    for (const unit of this.vars.targets) { resetStat(unit, Object.keys(this.vars.stats), Object.values(this.vars.stats), false) }
-                    this.vars.applied = false;
-                } else if (!this.vars.cancel && !this.vars.applied) {
-                    for (const unit of this.vars.targets) { resetStat(unit, Object.keys(this.vars.stats), Object.values(this.vars.stats)) }
-                    this.vars.applied = true;
-                }
-            }, changeFunc
-        );
-    }
+function basicModifier(name, description, vari) {
+    return new Modifier(name, description, vari,
+        function() { resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats)) },
+        function(context) {
+            if (this.vars.target === context.unit) this.vars.duration--;
+            return this.vars.duration <= 0;
+        }
+    );
 }
 
-function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)) }
-
-function unitFilter(team, position, downed = null) { return allUnits.filter(unit => (team === '' || unit.team === team) && (position === "mid" ? unit.base.position === "mid" : position === '' || unit.position === position) && (downed === null ? true : (downed ? unit.hp <= 0 : unit.hp > 0))) }
+new Modifier("Reapply Passive", "Reapplies passive modifiers on unit revive",
+    { caster: null, target: null, properties: ["system"], listeners: { unitChange: true }, perm: true },
+    function() {},
+    function(context) { if (context.type === "revive") for (const mod of modifiers.filter(mod => mod.vars.caster === context.unit && mod.vars.passive)) mod.cancel(false) },
+    function() {},
+    function() {}
+) //move to combat.js when created
 
 function logAction(message, type = 'info') {
     const logContainer = document.getElementById('action-log');
@@ -497,6 +493,7 @@ function damage(attacker, defenders, critical, calcMods = {}) {
 
 function heal(healer, targets, amount, calcMods = {}) {
     if (eventState.healStart.length) handleEvent('healStart', {healer, targets, calcMods});
+    const heal = [];
     for (let i = 0; i < targets.length; i++) {
         let healSingle = Math.ceil(Math.max((calcMods.targets?.[i]?.healFactor || calcMods.all?.healFactor || targets[i].healFactor) * amount[i]));
         if (eventState.singleHeal.length) {
@@ -504,10 +501,12 @@ function heal(healer, targets, amount, calcMods = {}) {
             handleEvent('singleHeal', context);
             healSingle = context.nil ? 0 : Math.ceil(Math.max((healSingle + (context.bonus || 0))*(context.mult || 1)/(context.div || 1) + (context.flatBonus || 0), 0));
         }
-        if (!targets[i].hp && eventState.unitChange.length) handleEvent('unitChange', {type: 'revived', unit: targets[i]});
+        const revive = !targets[i].hp && healSingle;
         targets[i].hp = Math.min(targets[i].hp + healSingle, targets[i].base.hp);
-        logAction(`${healer.name} heals ${targets[i].name} for ${healSingle} hp!`, "heal");
+        if (revive && eventState.unitChange.length) handleEvent('unitChange', {type: 'revive', unit: targets[i]});
+        heal.push(`${targets[i].name} ${healSingle} hp`);
     }
+    logAction(`${healer.name} heals ${heal.join(", ")}!`, "heal");
 }
 
 function hpChange(unit, targets, values) {
@@ -541,8 +540,9 @@ function hpChange(unit, targets, values) {
             handleEvent('singleHeal', context);
             healSingle = context.nil ? 0 : Math.ceil(Math.max((healSingle + (context.bonus || 0))*(context.mult || 1)/(context.div || 1) + (context.flatBonus || 0), 0));
         }
-        if (!targets[i].hp && eventState.unitChange.length) handleEvent('unitChange', {type: 'revived', unit: targets[i]});
+        const revive = !targets[i].hp && healSingle;
         targets[i].hp = Math.min(targets[i].hp + healSingle, targets[i].base.hp);
+        if (revive && eventState.unitChange.length) handleEvent('unitChange', {type: 'revived', unit: targets[i]});
         logAction(`${unit.name} heals ${targets[i].name} for ${healSingle} hp!`, "heal");
     }
 }
@@ -568,14 +568,15 @@ function resistDebuff(attacker, defenders, calcMods = {}) {
 }
 
 function resourceChange(unit, resources, drain = false) {
-        const context = {unit, resources};
-        if (eventState.resourceChange.length) handleEvent('resourceChange', context);
-        for (const resource in context.resources) {
-            context.resources[resource] = (context[resource]?.nil || context.all?.nil) ? 0 : (resources[resource] + (context[resource]?.bonus || 0) + (context.all?.bonus || 0))*(context[resource]?.mult || 1)*(context.all?.mult || 1)/(context[resource]?.div || 1)/(context.all?.div || 1) + (context[resource]?.flatBonus || 0) + (context.all?.flatBonus || 0);
-            if (!drain && -context.resources[resource] > unit[resource]) return (currentAction.length === 1 && currentUnit.team === 'player') ? !showMessage(`Not enough ${resource}!`, "error", "selection") : false;
-        }
-        for (const resource in context.resources) unit[resource] = Math.ceil(Math.max(0, Math.min(unit[resource] + context.resources[resource], unit.base[resource])));
-        return true
+    const { position, ...actualResources } = resources;
+    const context = {unit, resources: actualResources};
+    if (eventState.resourceChange.length) handleEvent('resourceChange', context);
+    for (const resource in context.resources) {
+        context.resources[resource] = (context[resource]?.nil || context.all?.nil) ? 0 : (resources[resource] + (context[resource]?.bonus || 0) + (context.all?.bonus || 0))*(context[resource]?.mult || 1)*(context.all?.mult || 1)/(context[resource]?.div || 1)/(context.all?.div || 1) + (context[resource]?.flatBonus || 0) + (context.all?.flatBonus || 0);
+        if (!drain && -context.resources[resource] > unit[resource]) return (currentAction.length === 1 && currentUnit.team === 'player') ? !showMessage(`Not enough ${resource}!`, "error", "selection") : false;
+    }
+    for (const resource in context.resources) unit[resource] = Math.ceil(Math.max(0, Math.min(unit[resource] + context.resources[resource], unit.base[resource])));
+    return true
 }
 
-export { Modifier, handleEvent, removeModifier, basicModifier, setUnit, sleep, logAction, selectTarget, playerTurn, unitFilter, showMessage, attack, resistDebuff, resetStat, crit, damage, randTarget, enemyTurn, cleanupGlobalHandlers, allUnits, modifiers, currentUnit, currentAction, elements, eventState };
+export { setUnit, sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, playerTurn, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, allUnits, modifiers, currentUnit, currentAction, elements, eventState };

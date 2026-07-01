@@ -1,4 +1,4 @@
-import { eventState, unitFilter } from '../combatDictionary.js';
+import { setUnit, sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, playerTurn, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, allUnits, modifiers, currentUnit, currentAction, elements, eventState } from '../combatDictionary.js';
 import { Unit } from './unit.js';
 
 export const DexSoldier = new Unit("DeX (Soldier)", [1800, 25, 55, 70, 50, 60, 80, 55, 200, "front", 300, 150, 27]);
@@ -14,7 +14,6 @@ const skills = {
             code: (target) => {
                 this.stamina -= 30;
                 this.previousAction[0] = true;
-                logAction(`${this.name} powerfully swings a hammer at ${target[0].name}!`, "crit");
                 attack(this, target, 1, { attacker: { attack: this.attack + 50, accuracy: this.accuracy + 105, focus: this.focus + 60 } });
             }
         },
@@ -28,33 +27,13 @@ const skills = {
                 this.stamina -= 50;
                 this.previousAction[0] = true;
                 new Modifier("Determination", `Moderately heals${this.team === "player" ? ` (${this.healFactor} HP)` : ''} at start of turn whenever stamina is at least half`,
-                    { caster: this, target: this, duration: 5, properties: ["physical", "stamina", "heal"], listeners: { turnStart: true, unitChange: false }, cancel: false, applied: true, focus: true },
-                    function() {
-                        heal(this.vars.caster, [this.vars.target], [2 * this.healFactor]);
-                        logAction(`${this.vars.target.name} held onto hope and healed${this.vars.target.team === "player" ? ` ${this.vars.target.healFactor} HP` : ''}!`, "buff");
-                    },
+                    { caster: this, target: this, duration: 5, properties: ["physical", "stamina", "heal"], listeners: { turnStart: true }, focus: true },
+                    function() { heal(this.vars.caster, [this.vars.target], [2]) },
                     function(context) {
-                        if (this.vars.listeners.unitChange && context.unit === this.vars.target && context.type === "revive") this.cancel(false);
-                        else if (this.vars.applied && context.unit === this.vars.target) {
-                            heal(this.vars.caster, [this.vars.target], [this.healFactor]);
-                            logAction(`${this.vars.target.name} held onto hope and healed${this.vars.target.team === "player" ? ` ${this.vars.target.healFactor} HP` : ''}!`, "buff");
-                        }
+                        if (this.vars.applied && context.unit === this.vars.target) heal(this.vars.caster, [this.vars.target], [1]);
                         if (context.unit === this.vars.caster) this.vars.duration--;
                         return this.vars.duration <= 0;
                     },
-                    function(cancel, temp) {
-                        if (!temp) {
-                            if (this.vars.cancel && this.vars.applied) {
-                                this.vars.applied = false;
-                                this.vars.listeners.unitChange = true;
-                                eventState.unitChange.push(this);
-                            } else if (!this.vars.cancel && !this.vars.applied) {
-                                this.vars.applied = true;
-                                this.vars.listeners.unitChange = false;
-                                eventState.unitChange.splice(eventState.unitChange.indexOf(this), 1);
-                            }
-                        }
-                    }
                 );
             }
         },
@@ -68,13 +47,11 @@ const skills = {
                 this.stamina -= 50;
                 this.previousAction[0] = true;
                 new Modifier("But It Refused", `Revives once per turn`,
-                    { caster: this, target: this, duration: 5, properties: ["physical", "revive"], listeners: { turnStart: true, unitChange: true }, cancel: false, applied: true, focus: false, uses: 1 },
+                    { caster: this, target: this, duration: 5, properties: ["physical", "revive"], listeners: { turnStart: true, unitChange: true }, cancelListeners: ['unitChange'], focus: false, uses: 1 },
                     function() {},
                     function(context) {
-                        if (this.vars.listeners.unitChange && context.unit === this.vars.target && context.type === "downed") {
-                            heal(this.vars.caster, [this.vars.target], [3 * this.healFactor]);
-                            if (eventState.unitChange.length) handleEvent('unitChange', {type: 'revive', unit: this.vars.target});
-                            logAction(`${this.vars.target.name} refused to die and healed${this.vars.target.team === "player" ? ` ${3 * this.vars.target.healFactor} HP` : ''}!`, "buff");
+                        if (this.vars.applied && context.unit === this.vars.target && context.type === "downed") {
+                            heal(this.vars.caster, [this.vars.target], [3]);
                             this.vars.uses--;
                             this.cancel(true);
                         }
@@ -86,19 +63,6 @@ const skills = {
                             }
                         }
                         return this.vars.duration <= 0;
-                    },
-                    function(cancel, temp) {
-                        if (!temp) {
-                            if (this.vars.cancel && this.vars.applied) {
-                                this.vars.applied = false;
-                                this.vars.listeners.unitChange = true;
-                                eventState.unitChange.push(this);
-                            } else if (!this.vars.cancel && !this.vars.applied) {
-                                this.vars.applied = true;
-                                this.vars.listeners.unitChange = false;
-                                eventState.unitChange.splice(eventState.unitChange.indexOf(this), 1);
-                            }
-                        }
                     }
                 );
             }
@@ -112,34 +76,23 @@ const skills = {
                 if (this.stamina < 70) return showMessage("Not enough stamina!", "error", "selection");
                 this.stamina -= 70;
                 this.previousAction[0] = true;
-                logAction(`${this.name} guards the frontline!`, "buff");
                 new Modifier("Guardian", "Redirects attacks and increases defense",
-                    { caster: this, target: this, duration: 1, properties: ["physical"], stats: { defense: 40 }, listeners: { attackStart: true, turnStart: true }, cancel: false, applied: true, focus: true },
+                    { caster: this, target: this, duration: 1, properties: ["physical"], stats: { defense: 40 }, listeners: { attackStart: true, turnStart: true }, cancelListeners: ['attackStart'], focus: true },
                     function() { resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats)) },
                     function(context) {
-                        if (!currentAction.at(-2)?.properties?.includes("aoe") && !currentAction.at(-2)?.vars?.properties?.includes("aoe") && context.event === "attackStart" && context.attacker.team !== this.vars.target.team) {
+                        if (context.event === "attackStart" && context.attacker.team !== this.vars.target.team && !currentAction.at(-2)?.properties?.includes("aoe") && !currentAction.at(-2)?.vars?.properties?.includes("aoe")) {
+                            let redirect = 0;
                             for (let i = 0; i < context.defenders.length; i++) {
                                 const target = context.defenders[i];
                                 if (target === this.vars.target || target.team !== this.vars.target.team || target.position !== "front" || !context.calcMods.defenders?.[i]?.redirect) continue;
+                                redirect++;
                                 context.defenders[i] = this.vars.target;
                                 ((context.calcMods.defenders ??= [])[i] ??= {}).redirect = [target, this.vars.target];
                             }
+                            if (redirect > 0) logAction(`${this.vars.target.name} redirects ${redirect} attack${redirect > 1 ? 's' : ''} to self!`, "crit");
                         }
                         if (context.unit === this.vars.caster) this.vars.duration--;
                         return this.vars.duration <= 0;
-                    },
-                    function() {
-                        if (this.vars.cancel && this.vars.applied) {
-                            resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats), false);
-                            this.vars.applied = false;
-                            this.vars.listeners.attackStart = false;
-                            eventState.attackStart.splice(eventState.attackStart.indexOf(this), 1);
-                        } else if (!this.vars.cancel && !this.vars.applied) {
-                            resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats));
-                            this.vars.applied = true;
-                            this.vars.listeners.attackStart = true;
-                            eventState.attackStart.push(this);
-                        }
                     }
                 );
             }
@@ -153,8 +106,7 @@ const skills = {
                 if (this.stamina < 30) return showMessage("Not enough stamina!", "error", "selection");
                 this.stamina -= 30;
                 this.previousAction[0] = true;
-                logAction(`${this.name} prepares for a last stand!`, "crit");
-                basicModifier("Last Stand", "Defense, resist, and presence increase", { caster: this, target: this, duration: 4, properties: ["physical", "buff"], stats: { defense: 35, resist: 60, presence: 150 }, listeners: {turnEnd: true}, cancel: false, applied: true, focus: true });
+                basicModifier("Last Stand", "Defense, resist, and presence increase", { caster: this, target: this, duration: 4, properties: ["physical", "buff"], stats: { defense: 35, resist: 60, presence: 150 }, listeners: {turnEnd: true}, focus: true });
             }
         }
     ],
@@ -166,7 +118,6 @@ const skills = {
             code: () => {
                 this.previousAction[0] = true;
                 const target = randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false));
-                logAction(`${this.name} swings a hammer at ${target[0].name}`, "action");
                 attack(this, target, 1, { attacker: { attack: this.attack + 50, accuracy: this.accuracy + 70 } });
             }
         },
@@ -180,29 +131,12 @@ const skills = {
                 this.stamina -= 10;
                 this.previousAction[0] = true;
                 new Modifier("Determination", `Moderately heals${this.team === "player" ? ` (${this.healFactor} HP)` : ''} at start of turn whenever stamina is at least half`,
-                    { caster: this, target: this, duration: 3, properties: ["physical", "stamina", "heal"], listeners: { turnStart: true, unitChange: false }, cancel: false, applied: true, focus: true },
+                    { caster: this, target: this, duration: 3, properties: ["physical", "stamina", "heal"], listeners: { turnStart: true }, cancelListeners: ['turnStart'], focus: true },
                     function() {},
                     function(context) {
-                        if (context.event === "unitChange" && context.unit === this.vars.target && context.type === "revive") this.cancel(false);
-                        else if (this.vars.applied && context.unit === this.vars.target) {
-                            heal(this.vars.caster, [this.vars.target], [this.healFactor]);
-                            logAction(`${this.vars.target.name} held onto hope and healed${this.vars.target.team === "player" ? ` ${this.vars.target.healFactor} HP` : ''}!`, "buff");
-                        }
-                        if (context.event === 'turnStart' && context.unit === this.vars.caster) this.vars.duration--;
+                        if (this.vars.applied && context.unit === this.vars.target) heal(this.vars.caster, [this.vars.target], [1]);
+                        if (context.unit === this.vars.caster) this.vars.duration--;
                         return this.vars.duration <= 0;
-                    },
-                    function(cancel, temp) {
-                        if (!temp) {
-                            if (this.vars.cancel && this.vars.applied) {
-                                this.vars.applied = false;
-                                this.vars.listeners.unitChange = true;
-                                eventState.unitChange.push(this);
-                            } else if (!this.vars.cancel && !this.vars.applied) {
-                                this.vars.applied = true;
-                                this.vars.listeners.unitChange = false;
-                                eventState.unitChange.splice(eventState.unitChange.indexOf(this), 1);
-                            }
-                        }
                     }
                 );
             }
@@ -211,41 +145,29 @@ const skills = {
             name: "Guardian",
             properties: ["physical", "stamina"],
             cost: { stamina: 40 },
-            description: "Cost 40 stamina\nRedirects all non-aoe attacks on the frontline to self for 1 turn",
+            description: "Cost 40 stamina\nRedirects all non-aoe attacks on lowest hp frontline unit to self for 1 turn",
             code: () => {
                 if (this.stamina < 40) return showMessage("Not enough stamina!", "error", "selection");
                 this.stamina -= 40;
                 this.previousAction[0] = true;
-                logAction(`${this.name} guards!`, "buff");
                 new Modifier("Guardian", "Redirects attacks from an ally and increases defense",
-                    { caster: this, target: this, duration: 1, properties: ["physical"], listeners: { attackStart: true, turnStart: true }, cancel: false, applied: true, focus: true },
+                    { caster: this, target: this, duration: 1, properties: ["physical"], listeners: { attackStart: true, turnStart: true }, cancelListeners: ['attackStart'], focus: true },
                     function() {},
                     function(context) {
-                        if (!currentAction.at(-2)?.properties?.includes("aoe") && !currentAction.at(-2)?.vars?.properties?.includes("aoe") && context.event === "attackStart" && context.attacker.team !== this.vars.caster.team) {
+                        if (context.event === "attackStart" && context.attacker.team !== this.vars.caster.team && !currentAction.at(-2)?.properties?.includes("aoe") && !currentAction.at(-2)?.vars?.properties?.includes("aoe")) {
+                            let lowestHpUnit = unitFilter(this.vars.caster.team, "front", false).reduce((lowest, unit) => unit.hp / unit.base.hp < lowest.hp / lowest.base.hp ? unit === this.vars.caster ? lowest : unit : lowest), redirect = 0;
+                            if (eventState.targets.length) handleEvent('targets', { selectedTargets: lowestHpUnit, count: 1, trueRand: false });
                             for (let target of context.defenders) {
                                 const index = context.defenders.indexOf(target);
-                                if (target === this.vars.caster || target.team !== this.vars.caster.team || target.position !== "front" || !context.calcMods.defenders[index].redirect) continue;
+                                if (target !== lowestHpUnit) continue;
                                 context.defenders.splice(index, 1, this.vars.caster);
                                 ((context.calcMods.defenders ??= [])[index] ??= {}).redirect = [target, this.vars.caster];
+                                redirect++;
                             }
+                            if (redirect > 0) logAction(`${this.vars.caster.name} redirects ${redirect} attack${redirect > 1 ? 's' : ''} to self!`, "crit");
                         }
                         if (context.unit === this.vars.caster) this.vars.duration--;
                         return this.vars.duration <= 0;
-                    },
-                    function(cancel, temp) {
-                        if (!temp) {
-                            if (this.vars.cancel && this.vars.applied) {
-                                resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats), false);
-                                this.vars.applied = false;
-                                this.vars.listeners.attackStart = false;
-                                eventState.attackStart.splice(eventState.attackStart.indexOf(this), 1);
-                            } else if (!this.vars.cancel && !this.vars.applied) {
-                                resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats));
-                                this.vars.applied = true;
-                                this.vars.listeners.attackStart = true;
-                                eventState.attackStart.push(this);
-                            }
-                        }
                     }
                 );
             }
@@ -258,7 +180,6 @@ const skills = {
             description: "Attacks a single target with increased attack, accuracy, and focus.",
             code: () => {
                 const target = randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false));
-                logAction(`${this.name} quickly swings a hammer at ${target[0].name}`, "action");
                 attack(this, target, 1, { attacker: { attack: this.attack + 50 } });
             }
         },
@@ -269,30 +190,13 @@ const skills = {
             code: () => {
                 this.previousAction[0] = true;
                 new Modifier("Determination", `Moderately heals${this.team === "player" ? ` (${this.healFactor} HP)` : ''} at start of next turn`,
-                    { caster: this, target: this, duration: 1, properties: ["physical", "heal"], listeners: { turnStart: true, unitChange: false }, cancel: false, applied: true, focus: true },
+                    { caster: this, target: this, duration: 1, properties: ["physical", "heal"], listeners: { turnStart: true }, cancelListeners: ['turnStart'], cancel: false, applied: true, focus: true },
                     function() {},
                     function(context) {
-                        if (this.vars.listeners.unitChange && context.unit === this.vars.target && context.type === "revive") this.cancel(false);
-                        else if (this.vars.applied && context.unit === this.vars.target) {
-                            heal(this.vars.caster, [this.vars.target], [this.healFactor]);
-                            logAction(`${this.vars.target.name} held onto hope and healed${this.vars.target.team === "player" ? ` ${this.vars.target.healFactor} HP` : ''}!`, "buff");
-                        }
-                        if (context.event === "turnStart" && context.unit === this.vars.caster) this.vars.duration--;
+                        if (this.vars.applied && context.unit === this.vars.target) heal(this.vars.caster, [this.vars.target], [1]);
+                        if (context.unit === this.vars.caster) this.vars.duration--;
                         if (this.vars.duration <= 0) return true
                     },
-                    function(cancel, temp) {
-                        if (!temp) {
-                            if (this.vars.cancel && this.vars.applied) {
-                                this.vars.applied = false;
-                                this.vars.listeners.unitChange = true;
-                                eventState.unitChange.push(this);
-                            } else if (!this.vars.cancel && !this.vars.applied) {
-                                this.vars.applied = true;
-                                this.vars.listeners.unitChange = false;
-                                eventState.unitChange.splice(eventState.unitChange.indexOf(this), 1);
-                            }
-                        }
-                    }
                 );
             }
         },
@@ -300,10 +204,7 @@ const skills = {
             name: "Last Stand",
             properties: ["buff"],
             description: "Increases defense and presence for 1 turn",
-            code: () => {
-                logAction(`${this.name} stands there.`, "crit");
-                basicModifier("Last Stand", "Defense and presence increase", { caster: this, target: this, duration: 1, properties: ["physical", "buff"], stats: { defense: 15, presence: 50 }, listeners: {turnStart: true}, cancel: false, applied: true, focus: true });
-            }
+            code: () => { basicModifier("Last Stand", "Defense and presence increase", { caster: this, target: this, duration: 1, properties: ["physical", "buff"], stats: { defense: 15, presence: 50 }, listeners: {turnStart: true}, focus: true }) }
         }
     ],
     passive: [
@@ -314,32 +215,9 @@ const skills = {
             description: `Heals (${this.healFactor} HP) at start of turn whenever stamina is at least half`,
             code: () => {
                 new Modifier("Determination", `Heals${this.team === "player" ? ` (${this.healFactor} HP)` : ''} at start of turn whenever stamina is at least half`,
-                    { caster: this, target: this, properties: ["physical", "stamina", "heal"], listeners: { turnStart: true, unitChange: false }, cancel: false, applied: true, focus: true, passive: true },
+                    { caster: this, target: this, properties: ["physical", "stamina", "heal"], listeners: { turnStart: true }, cancelListeners: ['turnStart'], focus: true, passive: true },
                     function() {},
-                    function(context) {
-                        if (this.vars.listeners.unitChange && context.unit === this.vars.target && context.type === "revive") this.cancel(false);
-                        else if (this.vars.applied && context.unit === this.vars.target && 2 * this.vars.target.stamina >= this.vars.target.base.stamina) {
-                            heal(this.vars.caster, [this.vars.target], [this.healFactor]);
-                            logAction(`${this.vars.target.name} held onto hope and healed${this.vars.target.team === "player" ? ` ${this.vars.target.healFactor} HP` : ''}!`, "buff");
-                        }
-                    },
-                    function(cancel, temp) {
-                        if (!temp) {
-                            if (this.vars.cancel && this.vars.applied) {
-                                this.vars.applied = false;
-                                this.vars.listeners.turnStart = false;
-                                eventState.turnStart.splice(eventState.turnStart.indexOf(this), 1);
-                                this.vars.listeners.unitChange = true;
-                                eventState.unitChange.push(this);
-                            } else if (!this.vars.cancel && !this.vars.applied) {
-                                this.vars.applied = true;
-                                this.vars.listeners.unitChange = false;
-                                eventState.unitChange.splice(eventState.unitChange.indexOf(this), 1);
-                                this.vars.listeners.turnStart = true;
-                                eventState.turnStart.push(this);
-                            }
-                        }
-                    }
+                    function(context) { if (this.vars.applied && context.unit === this.vars.target && 2 * this.vars.target.stamina >= this.vars.target.base.stamina) heal(this.vars.caster, [this.vars.target], [1]) }
                 );
             }
         },
@@ -350,20 +228,12 @@ const skills = {
             description: `Cost 30 stamina\nRevives if have enough stamina`,
             code: () => {
                 new Modifier("But It Refused", `Revives`,
-                    { caster: this, target: this, properties: ["physical", "stamina", "revive"], listeners: { unitChange: true }, cancel: false, applied: true, focus: false, passive: true },
+                    { caster: this, target: this, properties: ["physical", "stamina", "revive"], listeners: { unitChange: true }, cancelListeners: ['unitChange'], focus: false, passive: true },
                     function() {},
                     function(context) {
-                        if (this.vars.listeners.unitChange && context.unit === this.vars.target && context.type === "downed" && this.vars.target.stamina >= 30) {
+                        if (this.vars.applied && context.unit === this.vars.target && context.type === "downed" && this.vars.target.stamina >= 30) {
                             resourceChange(this.vars.caster, { stamina: -30 });
-                            heal(this.vars.caster, [this.vars.target], [3 * this.healFactor]);
-                            if (eventState.unitChange.length) handleEvent('unitChange', {type: 'revive', unit: this.vars.target});
-                            logAction(`${this.vars.target.name} refused to die and healed${this.vars.target.team === "player" ? ` ${3 * this.vars.target.healFactor} HP` : ''}!`, "buff");
-                        }
-                    },
-                    function(cancel, temp) {
-                        if (!temp) {
-                            if (this.vars.cancel && this.vars.applied) this.vars.applied = false;
-                            else if (!this.vars.cancel && !this.vars.applied) this.vars.applied = true;
+                            heal(this.vars.caster, [this.vars.target], [3]);
                         }
                     }
                 );
@@ -376,33 +246,23 @@ const skills = {
             description: "Spends 5 stamina per redirect to redirect all non-aoe attacks on lowest hp frontline unit to self",
             code: () => {
                 new Modifier("Guardian", "Redirects attacks",
-                    { caster: this, target: this, duration: 1, properties: ["physical", "stamina"], listeners: { attackStart: true }, cancel: false, applied: true, focus: true, passive: true },
+                    { caster: this, target: this, duration: 1, properties: ["physical", "stamina"], listeners: { attackStart: true }, cancelListeners: ['attackStart'], focus: true, passive: true },
                     function() { },
                     function(context) {
                         if (this.vars.caster.stamina >= 5 && !currentAction.at(-2)?.properties?.includes("aoe") && !currentAction.at(-2)?.vars?.properties?.includes("aoe") && context.event === "attackStart" && context.attacker.team !== this.vars.target.team) {
+                            let redirect = 0;
                             for (let i = 0; i < context.defenders.length; i++) {
                                 const target = context.defenders[i];
                                 if (this.vars.caster.stamina < 5 ||target === this.vars.target || target.team !== this.vars.target.team || target.position !== "front" || context.calcMods.defenders?.[i]?.redirect) continue;
                                 context.defenders[i] = this.vars.target;
                                 ((context.calcMods.defenders ??= [])[i] ??= {}).redirect = [target, this.vars.target];
                                 resourceChange(this.vars.caster, { stamina: -5 });
+                                redirect++;
                             }
+                            if (redirect > 0) logAction(`${this.vars.caster.name} redirects ${redirect} attack${redirect > 1 ? 's' : ''} to self!`, "crit");
                         }
                         if (context.unit === this.vars.caster) this.vars.duration--;
                         return this.vars.duration <= 0;
-                    },
-                    function(cancel, temp) {
-                        if (!temp) {
-                            if (this.vars.cancel && this.vars.applied) {
-                                this.vars.applied = false;
-                                this.vars.listeners.attackStart = false;
-                                eventState.attackStart.splice(eventState.attackStart.indexOf(this), 1);
-                            } else if (!this.vars.cancel && !this.vars.applied) {
-                                this.vars.applied = true;
-                                this.vars.listeners.attackStart = true;
-                                eventState.attackStart.push(this);
-                            }
-                        }
                     }
                 );
             }
@@ -412,18 +272,9 @@ const skills = {
             properties: ["buff"],
             description: "Increases defense and presence",
             code: () => {
-                new Modifier("Last Stand", "Increases defense and presence", { caster: this, target: this, properties: ["physical", "buff"], stats: { defense: 15, presence: 100 }, cancel: false, applied: true, focus: true, passive: true },
+                new Modifier("Last Stand", "Increases defense and presence", { caster: this, target: this, properties: ["physical", "buff"], stats: { defense: 15, presence: 100 }, focus: true, passive: true },
                     function() { resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats)) },
-                    function(context) {},
-                    function() {
-                        if (this.vars.cancel && this.vars.applied) {
-                            resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats), false);
-                            this.vars.applied = false;
-                        } else if (!this.vars.cancel && !this.vars.applied) {
-                            resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats));
-                            this.vars.applied = true;
-                        }
-                    }
+                    function() {},
                 );
             }
         }
@@ -436,32 +287,9 @@ const skills = {
             description: `Moderately heals (${Math.round(1.5 * this.healFactor)} HP) at start of turn whenever stamina is at least half`,
             code: () => {
                 new Modifier("Determination", `Moderately heals${this.team === "player" ? ` (${Math.round(1.5 * this.healFactor)} HP)` : ''} at start of turn whenever stamina is at least half`,
-                    { caster: this, target: this, properties: ["physical", "stamina", "heal"], listeners: { turnStart: true, unitChange: false }, cancel: false, applied: true, focus: true, passive: true },
+                    { caster: this, target: this, properties: ["physical", "stamina", "heal"], listeners: { turnStart: true }, cancelListeners: ['turnStart'], cancel: false, applied: true, focus: true, passive: true },
                     function() {},
-                    function(context) {
-                        if (this.vars.listeners.unitChange && context.unit === this.vars.target && context.type === "revive") this.cancel(false);
-                        else if (this.vars.applied && this.vars.target === context?.unit && 2 * this.vars.target.stamina >= this.vars.target.base.stamina) {
-                            heal(this.vars.caster, [this.vars.target], [1.5 * this.healFactor]);
-                            logAction(`${this.vars.target.name} held onto hope and healed${this.vars.target.team === "player" ? ` ${Math.round(1.5 * this.vars.target.healFactor)} HP` : ''}!`, "buff");
-                        }
-                    },
-                    function(cancel, temp) {
-                        if (!temp) {
-                            if (this.vars.cancel && this.vars.applied) {
-                                this.vars.applied = false;
-                                this.vars.listeners.turnStart = false;
-                                eventState.turnStart.splice(eventState.turnStart.indexOf(this), 1);
-                                this.vars.listeners.unitChange = true;
-                                eventState.unitChange.push(this);
-                            } else if (!this.vars.cancel && !this.vars.applied) {
-                                this.vars.applied = true;
-                                this.vars.listeners.unitChange = false;
-                                eventState.unitChange.splice(eventState.unitChange.indexOf(this), 1);
-                                this.vars.listeners.turnStart = true;
-                                eventState.turnStart.push(this);
-                            }
-                        }
-                    }
+                    function(context) { if (this.vars.applied && this.vars.target === context?.unit && 2 * this.vars.target.stamina >= this.vars.target.base.stamina) heal(this.vars.caster, [this.vars.target], [1.5]) }
                 );
             }
         },
@@ -473,15 +301,6 @@ const skills = {
                 new Modifier("Last Stand", "Increases defense, resist, and presence", { caster: this, target: this, properties: ["physical", "buff"], stats: { defense: 20, resist: 20, presence: 125 }, cancel: false, applied: true, focus: true },
                     function() { resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats)) },
                     function(context) {},
-                    function() {
-                        if (this.vars.cancel && this.vars.applied) {
-                            resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats), false);
-                            this.vars.applied = false;
-                        } else if (!this.vars.cancel && !this.vars.applied) {
-                            resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats));
-                            this.vars.applied = true;
-                        }
-                    }
                 );
             }
         }

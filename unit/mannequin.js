@@ -1,4 +1,4 @@
-import { unitFilter } from '../combatDictionary.js';
+import { setUnit, sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, playerTurn, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, allUnits, modifiers, currentUnit, currentAction, elements, eventState } from '../combatDictionary.js';
 import { Unit } from './unit.js';
 
 export const Mannequin = new Unit("Mannnequin", [800, 45, 22, 140, 130, 150, 70, 145, 50, "mid", 120, 100, 10]);
@@ -14,9 +14,8 @@ const skills = {
                 if (this.stamina < 20) return showMessage("Not enough stamina!", "error", "selection");
                 this.stamina -= 20;
                 this.previousAction[0] = true;
-                logAction(`${this.name} reaches for an ideal!`, "buff");
-                basicModifier("A Wish To Be An Artificial buff", "Accuracy, focus, and speed increase", { caster: this, target: this, duration: 6, properties: ["physical", "buff"], stats: { accuracy: 60, focus: 50, speed: 40 }, listeners: {turnEnd: true}, cancel: false, applied: true, focus: true });
-                basicModifier("A Wish To Be An Artificial penalty", "Speed and presence decrease", { caster: this, target: this, duration: 6, properties: ["physical", "penalty"], stats: { resist: -25, presence: -35 }, listeners: {turnEnd: true}, cancel: false, applied: true, focus: true, penalty: true });
+                basicModifier("A Wish To Be An Artificial buff", "Accuracy, focus, and speed increase", { caster: this, target: this, duration: 6, properties: ["physical", "buff"], stats: { accuracy: 60, focus: 50, speed: 40 }, listeners: { turnEnd: true }, focus: true });
+                basicModifier("A Wish To Be An Artificial penalty", "Speed and presence decrease", { caster: this, target: this, duration: 6, properties: ["physical", "penalty"], stats: { resist: -25, presence: -35 }, listeners: { turnEnd: true }, focus: true, penalty: true });
             }
         },
         {
@@ -28,9 +27,8 @@ const skills = {
                 if (this.stamina < 50) return showMessage("Not enough stamina!", "error", "selection");
                 this.previousAction[0] = true;
                 this.stamina -= 50;
-                logAction(`${this.name} provides emergency aid to the entire ${this.position}line!`, "heal");
                 const targets = unitFilter(this.team, this.position);
-                heal(this, targets, targets.map(t => 2 * t.healFactor));
+                heal(this, targets, Array(targets.length).fill(2));
             }
         },
         {
@@ -42,9 +40,8 @@ const skills = {
                 if (this.stamina < 20) return showMessage("Not enough stamina!", "error", "selection");
                 this.stamina -= 20;
                 this.previousAction[0] = true;
-                logAction(`${this.name} reaches for an ideal!`, "buff");
-                basicModifier("Ex-Revolutionary buff", "attack, accuracy, and focus increase", { caster: this, target: this, duration: 6, properties: ["physical", "buff"], stats: { attack: 40, accuracy: 40, focus: 30 }, listeners: {turnEnd: true}, cancel: false, applied: true, focus: true });
-                basicModifier("Ex-Revolutionary penalty", "Defense, evasion, resist, and presence decrease", { caster: this, target: this, duration: 6, properties: ["physical", "penalty"], stats: { defense: -10, evasion: -25, resist: -50, presence: -50 }, listeners: {turnEnd: true}, cancel: false, applied: true, focus: true, penalty: true });
+                basicModifier("Ex-Revolutionary buff", "attack, accuracy, and focus increase", { caster: this, target: this, duration: 6, properties: ["physical", "buff"], stats: { attack: 40, accuracy: 40, focus: 30 }, listeners: { turnEnd: true }, focus: true });
+                basicModifier("Ex-Revolutionary penalty", "Defense, evasion, resist, and presence decrease", { caster: this, target: this, duration: 6, properties: ["physical", "penalty"], stats: { defense: -10, evasion: -25, resist: -50, presence: -50 }, listeners: { turnEnd: true }, focus: true, penalty: true });
             }
         },
         {
@@ -56,7 +53,6 @@ const skills = {
             code: (targets) => {
                 this.stamina -= 40;
                 this.previousAction[0] = true;
-                logAction(`${this.name} attempts to do a trickshot!`, "action");
                 attack(this, targets, 8 / targets.length, { attacker: { attack: this.attack + 25} });
             }
         },
@@ -69,7 +65,6 @@ const skills = {
             code: (target) => {
                 this.stamina -= 40;
                 this.previousAction[0] = true;
-                logAction(`${this.name} attempts to headshot ${target[0].name}!`, "action");
                 attack(this, target, 1, { attacker: { attack: this.attack + 60, accuracy: this.accuracy + 70, focus: this.focus + 80 } });
             }
         },
@@ -83,7 +78,7 @@ const skills = {
                 this.stamina -= 50;
                 this.previousAction[0] = true;
                 new Modifier("Reload", `Ignores reload mechanic`,
-                    { caster: this, target: this, duration: 6, properties: ["physical", "pseudo-resource"], listeners: { turnStart: true }, cancel: false, applied: true, focus: true},
+                    { caster: this, target: this, duration: 6, properties: ["physical", "pseudo-resource"], listeners: { turnStart: true }, focus: true},
                     function() {
                         this.custom?.dualWield !== undefined && (this.custom.dualWield = true);
                         this.custom?.snipe !== undefined && (this.custom.snipe = true);
@@ -96,45 +91,40 @@ const skills = {
                             this.vars.duration--;
                         }
                         if (this.vars.duration <= 0);
-                    },
-                    function(cancel, temp) {
-                        if (!temp) {
-                            if (this.vars.cancel && this.vars.applied) this.vars.applied = false;
-                            else if (!this.vars.cancel && !this.vars.applied) this.vars.applied = true;
-                        }
                     }
                 );
             }
         },
         {
-        name: "Switch Position",
-        properties: ["physical", "stamina", "positional"],
-        description: "Switch between front and backline positions as well as perform both frontline and backline basic skills",
-        code: () => {
-            this.previousAction[0] = true;
-            this.skills.basic.code();
-            if (eventState.positionChange.length) handleEvent('positionChange', { unit: this, position: this.position === "back" ? "front" : "back" });
-            if (this.position === "back") {
-                this.position = "front";
-                logAction(`${this.name} moves to the frontline.`, "info");
-                this.base.attack = 55;
-                this.base.evasion = 90;
-                this.base.resist = 55;
-                this.base.speed = 165;
-                this.base.presence = 100;
-            } else {
-                this.position = "back";
-                logAction(`${this.name} moves to the backline.`, "info");
-                this.base.attack = 45;
-                this.base.evasion = 130;
-                this.base.resist = 70;
-                this.base.speed = 145;
-                this.base.presence = 50;
+            name: "Switch Position",
+            properties: ["physical", "stamina", "positional"],
+            description: "Switch between front and backline positions, perform both frontline & backline basic skills, and reduce timer by 25% for next turn",
+            code: () => {
+                this.previousAction[0] = true;
+                this.skills.basic.code();
+                if (this.position === "back") {
+                    this.position = "front";
+                    logAction(`${this.name} moves to the frontline.`, "info");
+                    this.base.attack = 55;
+                    this.base.evasion = 90;
+                    this.base.resist = 55;
+                    this.base.speed = 165;
+                    this.base.presence = 100;
+                } else {
+                    this.position = "back";
+                    logAction(`${this.name} moves to the backline.`, "info");
+                    this.base.attack = 45;
+                    this.base.evasion = 130;
+                    this.base.resist = 70;
+                    this.base.speed = 145;
+                    this.base.presence = 50;
+                }
+                resetStat(this, ["attack", "evasion", "resist", "speed", "presence"]);
+                if (eventState.positionChange.length) handleEvent('positionChange', { unit: this, position: this.position });
+                this.skills.basic.code();
+                this.timer -= 250;
             }
-            resetStat(this, ["attack", "evasion", "resist", "speed", "presence"]);
-            this.skills.basic.code();
         }
-    }
     ],
     basic: [
         {
@@ -148,10 +138,7 @@ const skills = {
                 this.stamina -= 20;
                 let target = unitFilter(this.team, this.position).reduce((lowest, unit) => unit.hp / unit.base.hp < lowest.hp / lowest.base.hp ? unit : lowest);
                 if (eventState.targets.length) handleEvent('targets', { selectedTargets: target, count: 1, trueRand: false });
-                logAction(`${this.name} provides emergency aid to ${target.name}!`, "heal");
-                const revive = target.hp === 0;
-                heal(this, [target], [2 * target.healFactor]);
-                if (revive && eventState.unitChange.length) handleEvent('unitChange', {type: 'revive', unit: target});
+                heal(this, [target], [2]);
             }
         },
         {
@@ -161,12 +148,10 @@ const skills = {
             description: "Frontline only\nAttacks with increased damage to a single target 4 times or two targets 2 times",
             code: () => {
                 this.previousAction[0] = true;
-                const targets = randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false), 2)
+                const targets = randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false), 2);
                 (this.custom ??= {}).dualWield ??= true;
-                if (!(this.custom.dualWield = !this.custom.dualWield)) {
-                    logAction(`${this.name} dual wields!`, "action");
-                    attack(this, targets, 4 / targets.length, { attacker: { attack: this.attack + 25} });
-                }
+                if (!(this.custom.dualWield = !this.custom.dualWield)) attack(this, targets, 4 / targets.length, { attacker: { attack: this.attack + 25} });
+                else logAction(`${this.name} is reloading weapons!`, "info");
             }
         },
         {
@@ -178,12 +163,38 @@ const skills = {
                 this.previousAction[0] = true;
                 const target = randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "", false));
                 (this.custom ??= {}).snipe ??= true;
-                if (!(this.custom.snipe = this.custom.snipe)) {
-                    logAction(`${this.name} snipes ${target[0].name}!`, "action");
-                    attack(this, target, 1, { attacker: { attack: this.attack + 30, accuracy: this.accuracy + 35, focus: this.focus + 40 } });
-                }
+                if (!(this.custom.snipe = !this.custom.snipe)) attack(this, target, 1, { attacker: { attack: this.attack + 30, accuracy: this.accuracy + 35, focus: this.focus + 40 } });
+                else logAction(`${this.name} is reloading a weapon!`, "info");
             }
         },
+        {
+            name: "Switch Position",
+            properties: ["physical", "positional"],
+            description: "Switch between front & backline positions and reduce timer by 10% for next turn",
+            code: () => {
+                this.previousAction[0] = true;
+                if (this.position === "back") {
+                    this.position = "front";
+                    logAction(`${this.name} moves to the frontline.`, "info");
+                    this.base.attack = 55;
+                    this.base.evasion = 90;
+                    this.base.resist = 55;
+                    this.base.speed = 165;
+                    this.base.presence = 100;
+                } else {
+                    this.position = "back";
+                    logAction(`${this.name} moves to the backline.`, "info");
+                    this.base.attack = 45;
+                    this.base.evasion = 130;
+                    this.base.resist = 70;
+                    this.base.speed = 145;
+                    this.base.presence = 50;
+                }
+                resetStat(this, ["attack", "evasion", "resist", "speed", "presence"]);
+                if (eventState.positionChange.length) handleEvent('positionChange', { unit: this, position: this.position });
+                this.timer -= 100;
+            }
+        }
     ],
     secondary: [
         {
@@ -191,9 +202,8 @@ const skills = {
             properties: ["buff", "penalty"],
             description: "Increased accuracy & speed and decreased presence & resist.",
             code: () => {
-                logAction(`${this.name} hops for the impossible.`, "buff");
-                basicModifier("A Wish To Be An Artificial buff", "Accuracy and speed increase", { caster: this, target: this, duration: 2, properties: ["physical", "buff"], stats: { accuracy: 40, speed: 30 }, listeners: {turnEnd: true}, cancel: false, applied: true, focus: true });
-                basicModifier("A Wish To Be An Artificial penalty", "Speed and presence decrease", { caster: this, target: this, duration: 2, properties: ["physical", "penalty"], stats: { resist: -15, presence: -25 }, listeners: {turnEnd: true}, cancel: false, applied: true, focus: true, penalty: true });
+                basicModifier("A Wish To Be An Artificial buff", "Accuracy and speed increase", { caster: this, target: this, duration: 2, properties: ["physical", "buff"], stats: { accuracy: 40, speed: 30 }, listeners: { turnEnd: true }, focus: true });
+                basicModifier("A Wish To Be An Artificial penalty", "Speed and presence decrease", { caster: this, target: this, duration: 2, properties: ["physical", "penalty"], stats: { resist: -15, presence: -25 }, listeners: { turnEnd: true }, focus: true, penalty: true });
             }
         },
         {
@@ -204,10 +214,7 @@ const skills = {
                 this.previousAction[0] = true;
                 let target = unitFilter(this.team, this.position).reduce((lowest, unit) => unit.hp / unit.base.hp < lowest.hp / lowest.base.hp ? unit : lowest);
                 if (eventState.targets.length) handleEvent('targets', { selectedTargets: target, count: 1, trueRand: false });
-                logAction(`${this.name} provides some aid to ${target.name}!`, "heal");
-                const revive = target.hp === 0;
-                heal(this, [target], [target.healFactor]);
-                if (revive && eventState.unitChange.length) handleEvent('unitChange', {type: 'revive', unit: target});
+                heal(this, [target], [1]);
             }
         },
         {
@@ -217,35 +224,35 @@ const skills = {
             code: () => {
                 this.custom?.dualWield !== undefined && (this.custom.dualWield = true);
                 this.custom?.snipe !== undefined && (this.custom.snipe = true);
-                logAction(`${this.name} reloads all attacks!`, "action");
+                logAction(`${this.name} reloads all attacks.`, "action");
             }
         },
         {
-        name: "Switch Position",
-        properties: ["positional"],
-        description: "Switch between front and backline positions",
-        code: () => {
-            if (eventState.positionChange.length) handleEvent('positionChange', { unit: this, position: this.position === "back" ? "front" : "back" });
-            if (this.position === "back") {
-                this.position = "front";
-                logAction(`${this.name} moves to the frontline.`, "info");
-                this.base.attack = 55;
-                this.base.evasion = 90;
-                this.base.resist = 55;
-                this.base.speed = 165;
-                this.base.presence = 100;
-            } else {
-                this.position = "back";
-                logAction(`${this.name} moves to the backline.`, "info");
-                this.base.attack = 45;
-                this.base.evasion = 130;
-                this.base.resist = 70;
-                this.base.speed = 145;
-                this.base.presence = 50;
+            name: "Switch Position",
+            properties: ["positional"],
+            description: "Switch between front and backline positions",
+            code: () => {
+                if (eventState.positionChange.length) handleEvent('positionChange', { unit: this, position: this.position === "back" ? "front" : "back" });
+                if (this.position === "back") {
+                    this.position = "front";
+                    logAction(`${this.name} moves to the frontline.`, "info");
+                    this.base.attack = 55;
+                    this.base.evasion = 90;
+                    this.base.resist = 55;
+                    this.base.speed = 165;
+                    this.base.presence = 100;
+                } else {
+                    this.position = "back";
+                    logAction(`${this.name} moves to the backline.`, "info");
+                    this.base.attack = 45;
+                    this.base.evasion = 130;
+                    this.base.resist = 70;
+                    this.base.speed = 145;
+                    this.base.presence = 50;
+                }
+                resetStat(this, ["attack", "evasion", "resist", "speed", "presence"]);
             }
-            resetStat(this, ["attack", "evasion", "resist", "speed", "presence"]);
         }
-    }
     ],
     passive: [
         {
@@ -253,31 +260,13 @@ const skills = {
             properties: ["buff", "penalty"],
             description: "Increased accuracy & speed and decreased presence & resist.",
             code: () => {
-                new Modifier("A Wish To Be An Artificial buff", "Accuracy and speed increase", { caster: this, target: this, properties: ["physical", "buff"], stats: { accuracy: 30, speed: 15 }, cancel: false, applied: true, focus: true },
+                new Modifier("A Wish To Be An Artificial buff", "Accuracy and speed increase", { caster: this, target: this, properties: ["physical", "buff"], stats: { accuracy: 30, speed: 15 }, focus: true },
                     function() { resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats)) },
-                    function(context) {},
-                    function() {
-                        if (this.vars.cancel && this.vars.applied) {
-                            resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats), false);
-                            this.vars.applied = false;
-                        } else if (!this.vars.cancel && !this.vars.applied) {
-                            resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats));
-                            this.vars.applied = true;
-                        }
-                    }
+                    function() {}
                 );
-                new Modifier("A Wish To Be An Artificial penalty", "Speed and presence decrease", { caster: this, target: this, properties: ["physical", "penalty"], stats: { resist: -25, presence: -35 }, cancel: false, applied: true, focus: true },
+                new Modifier("A Wish To Be An Artificial penalty", "Speed and presence decrease", { caster: this, target: this, properties: ["physical", "penalty"], stats: { resist: -25, presence: -35 }, focus: true, penalty: true },
                     function() { resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats)) },
-                    function(context) {},
-                    function() {
-                        if (this.vars.cancel && this.vars.applied) {
-                            resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats), false);
-                            this.vars.applied = false;
-                        } else if (!this.vars.cancel && !this.vars.applied) {
-                            resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats));
-                            this.vars.applied = true;
-                        }
-                    }
+                    function() {}
                 );
             }
         },
@@ -289,34 +278,13 @@ const skills = {
                 this.base.stamina -= 20;
                 this.base.staminaRegen -= 2;
                 new Modifier("Emergency Aid", `Heals lowest hp ally (around ~5% max hp) in the same position times number of alive allies in same position`,
-                    { caster: this, target: this, properties: ["physical", "stamina", "heal", "positional"], listeners: { turnStart: true, unitChange: false }, cancel: false, applied: true, focus: true, passive: true },
+                    { caster: this, target: this, properties: ["physical", "stamina", "heal", "positional"], listeners: { turnStart: true }, cancelListeners: ['turnStart'], focus: true, passive: true },
                     function() {},
                     function(context) {
-                        if (this.vars.listeners.unitChange && context.unit === this.vars.target && context.type === "revive") this.cancel(false);
-                        else if (this.vars.applied && context.unit === this.vars.target) {
-                            let target = unitFilter(this.vars.target.team, this.vars.target.position).reduce((lowest, unit) => unit.hp / unit.base.hp < lowest.hp / lowest.base.hp ? unit : lowest);
+                        if (this.vars.applied && context.unit === this.vars.target) {
+                            let list = unitFilter(this.vars.target.team, this.vars.target.position), target = list.reduce((lowest, unit) => unit.hp / unit.base.hp < lowest.hp / lowest.base.hp ? unit : lowest);
                             if (eventState.targets.length) { handleEvent('targets', { selectedTargets: target, count: 1, trueRand: false }) };
-                            let count = unitFilter(this.vars.target.team, this.vars.target.position).filter(u => u.hp > 0).length - 1, revive = target.hp === 0;
-                            heal(this.vars.caster, [target], [Math.round(target.healFactor * count / 2)]);
-                            if (revive && eventState.unitChange.length) handleEvent('unitChange', {type: 'revive', unit: target});
-                            logAction(`${this.vars.caster.name} healed ${this.vars.caster.team === "player" ? ` ${Math.round(target.healFactor * count / 2)} HP to` : ''}${target.name}!`, "buff");
-                        }
-                    },
-                    function(cancel, temp) {
-                        if (!temp) {
-                            if (this.vars.cancel && this.vars.applied) {
-                                this.vars.applied = false;
-                                this.vars.listeners.turnStart = false;
-                                eventState.turnStart.splice(eventState.turnStart.indexOf(this), 1);
-                                this.vars.listeners.unitChange = true;
-                                eventState.unitChange.push(this);
-                            } else if (!this.vars.cancel && !this.vars.applied) {
-                                this.vars.applied = true;
-                                this.vars.listeners.unitChange = false;
-                                eventState.unitChange.splice(eventState.unitChange.indexOf(this), 1);
-                                this.vars.listeners.turnStart = true;
-                                eventState.turnStart.push(this);
-                            }
+                            heal(this.vars.caster, [target], [(list.filter(u => u.hp > 0).length - 1)/2]);
                         }
                     }
                 );
@@ -329,31 +297,13 @@ const skills = {
             code: () => {
                 this.base.stamina -= 10;
                 this.base.staminaRegen -= 1;
-                new Modifier("Ex-Revolutionary buff", "attack, accuracy, and focus increase", { caster: this, target: this, properties: ["physical", "buff"], stats: { attack: 20, accuracy: 20, focus: 15 }, cancel: false, applied: true, focus: true },
+                new Modifier("Ex-Revolutionary buff", "attack, accuracy, and focus increase", { caster: this, target: this, properties: ["physical", "buff"], stats: { attack: 20, accuracy: 20, focus: 15 }, focus: true },
                     function() { resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats)) },
-                    function(context) {},
-                    function() {
-                        if (this.vars.cancel && this.vars.applied) {
-                            resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats), false);
-                            this.vars.applied = false;
-                        } else if (!this.vars.cancel && !this.vars.applied) {
-                            resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats));
-                            this.vars.applied = true;
-                        }
-                    }
+                    function() {}
                 );
-                new Modifier("Ex-Revolutionary penalty", "Defense, evasion, resist, and presence decrease", { caster: this, target: this, properties: ["physical", "penalty"], stats: { defense: -20, evasion: -25, resist: -50, presence: -50 }, cancel: false, applied: true, focus: true, penalty: true },
+                new Modifier("Ex-Revolutionary penalty", "Defense, evasion, resist, and presence decrease", { caster: this, target: this, properties: ["physical", "penalty"], stats: { defense: -20, evasion: -25, resist: -50, presence: -50 }, focus: true, penalty: true },
                     function() { resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats)) },
-                    function(context) {},
-                    function() {
-                        if (this.vars.cancel && this.vars.applied) {
-                            resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats), false);
-                            this.vars.applied = false;
-                        } else if (!this.vars.cancel && !this.vars.applied) {
-                            resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats));
-                            this.vars.applied = true;
-                        }
-                    }
+                    function() {}
                 );
             }
         },
@@ -364,26 +314,12 @@ const skills = {
             description: `Cost 20 stamina\nSpends stamina to instantly reload attacks, doesn't reload if stamina is too low`,
             code: () => {
                 new Modifier("Reload", `Ignores reload mechanic`,
-                    { caster: this, target: this, properties: ["physical", "stamina", "pseudo-resource"], listeners: { turnEnd: true }, cancel: false, applied: true, focus: true, passive: true},
+                    { caster: this, target: this, properties: ["physical", "stamina", "pseudo-resource"], listeners: { turnEnd: true }, cancelListeners: ['turnEnd'], focus: true, passive: true},
                     function() { this.vars.caster.custom = { dualWield: true, snipe: true } },
                     function(context) {
                         if (context.unit === this.vars.caster && this.vars.applied) {
                             if (!this.vars.caster.custom.dualWield) this.vars.caster.custom.dualWield = resourceChange(this.vars.caster, { stamina: -20 });
                             if (!this.vars.caster.custom.snipe) this.vars.caster.custom.snipe = resourceChange(this.vars.caster, { stamina: -20 });
-                        }
-                    },
-                    function(cancel, temp) {
-                        if (!temp) {
-                            if (this.vars.cancel && this.vars.applied) {
-                                this.vars.applied = false;
-                                this.vars.listeners.turnEnd = false;
-                                eventState.turnEnd.splice(eventState.turnEnd.indexOf(this), 1);
-                            }
-                            else if (!this.vars.cancel && !this.vars.applied) {
-                                this.vars.applied = true;
-                                this.vars.listeners.turnEnd = true;
-                                eventState.turnEnd.push(this);
-                            }
                         }
                     }
                 );
@@ -396,31 +332,13 @@ const skills = {
             properties: ["buff", "penalty"],
             description: "Increased accuracy & speed and decreased presence & resist.",
             code: () => {
-                new Modifier("A Wish To Be An Artificial buff", "Accuracy and speed increase", { caster: this, target: this, properties: ["physical", "buff"], stats: { accuracy: 40, speed: 30 }, cancel: false, applied: true, focus: true },
+                new Modifier("A Wish To Be An Artificial buff", "Accuracy and speed increase", { caster: this, target: this, properties: ["physical", "buff"], stats: { accuracy: 40, speed: 30 }, focus: true },
                     function() { resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats)) },
-                    function(context) {},
-                    function() {
-                        if (this.vars.cancel && this.vars.applied) {
-                            resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats), false);
-                            this.vars.applied = false;
-                        } else if (!this.vars.cancel && !this.vars.applied) {
-                            resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats));
-                            this.vars.applied = true;
-                        }
-                    }
+                    function() {}
                 );
-                new Modifier("A Wish To Be An Artificial penalty", "Speed and presence decrease", { caster: this, target: this, properties: ["physical", "penalty"], stats: { resist: -15, presence: -25 }, cancel: false, applied: true, focus: true },
+                new Modifier("A Wish To Be An Artificial penalty", "Speed and presence decrease", { caster: this, target: this, properties: ["physical", "penalty"], stats: { resist: -15, presence: -25 }, focus: true, penalty: true },
                     function() { resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats)) },
-                    function(context) {},
-                    function() {
-                        if (this.vars.cancel && this.vars.applied) {
-                            resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats), false);
-                            this.vars.applied = false;
-                        } else if (!this.vars.cancel && !this.vars.applied) {
-                            resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats));
-                            this.vars.applied = true;
-                        }
-                    }
+                    function() {}
                 );
             }
         },
@@ -431,33 +349,13 @@ const skills = {
             code: () => {
                 this.base.stamina = Math.max(0, this.base.stamina - 20);
                 new Modifier("Emergency Aid", `Heals lowest hp ally (around ~7.5% max hp) in the same position times number of alive allies in same position`,
-                    { caster: this, target: this, properties: ["physical", "stamina", "heal"], listeners: { turnStart: true, unitChange: false }, cancel: false, applied: true, focus: true, passive: true },
+                    { caster: this, target: this, properties: ["physical", "stamina", "heal"], listeners: { turnStart: true }, cancelListeners: ['turnStart'], focus: true, passive: true },
                     function() {},
                     function(context) {
-                        if (this.vars.listeners.unitChange && context.unit === this.vars.target && context.type === "revive") this.cancel(false);
-                        else if (this.vars.applied && context.unit === this.vars.target) {
-                            let target = unitFilter(this.vars.target.team, this.vars.target.position).reduce((lowest, unit) => unit.hp / unit.base.hp < lowest.hp / lowest.base.hp ? unit : lowest);
-                            let count = unitFilter(this.vars.target.team, this.vars.target.position).filter(u => u.hp > 0).length - 1, revive = target.hp === 0;
-                            heal(this.vars.caster, [target], [Math.round(target.healFactor * count * .75)]);
-                            if (revive && eventState.unitChange.length) handleEvent('unitChange', {type: 'revive', unit: target});
-                            logAction(`${this.vars.caster.name} healed ${this.vars.caster.team === "player" ? ` ${Math.round(target.healFactor * count * 0.75)} HP to` : ''}${target.name}!`, "buff");
-                        }
-                    },
-                    function(cancel, temp) {
-                        if (!temp) {
-                            if (this.vars.cancel && this.vars.applied) {
-                                this.vars.applied = false;
-                                this.vars.listeners.turnStart = false;
-                                eventState.turnStart.splice(eventState.turnStart.indexOf(this), 1);
-                                this.vars.listeners.unitChange = true;
-                                eventState.unitChange.push(this);
-                            } else if (!this.vars.cancel && !this.vars.applied) {
-                                this.vars.applied = true;
-                                this.vars.listeners.unitChange = false;
-                                eventState.unitChange.splice(eventState.unitChange.indexOf(this), 1);
-                                this.vars.listeners.turnStart = true;
-                                eventState.turnStart.push(this);
-                            }
+                        if (this.vars.applied && context.unit === this.vars.target) {
+                            let list = unitFilter(this.vars.target.team, this.vars.target.position), target = list.reduce((lowest, unit) => unit.hp / unit.base.hp < lowest.hp / lowest.base.hp ? unit : lowest);
+                            if (eventState.targets.length) { handleEvent('targets', { selectedTargets: target, count: 1, trueRand: false }) };
+                            heal(this.vars.caster, [target], [(list.filter(u => u.hp > 0).length - 1) * .75]);
                         }
                     }
                 );
@@ -470,31 +368,13 @@ const skills = {
             description: "Reduce max stamina by 10\nIncreased attack/accuracy/focus and decreased defense/evasion/resist/presence.",
             code: () => {
                 this.base.stamina = Math.max(0, this.base.stamina - 10);
-                new Modifier("Ex-Revolutionary buff", "attack, accuracy, and focus increase", { caster: this, target: this, properties: ["physical", "buff"], stats: { attack: 40, accuracy: 40, focus: 30 }, cancel: false, applied: true, focus: true },
+                new Modifier("Ex-Revolutionary buff", "attack, accuracy, and focus increase", { caster: this, target: this, properties: ["physical", "buff"], stats: { attack: 40, accuracy: 40, focus: 30 }, focus: true },
                     function() { resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats)) },
-                    function(context) {},
-                    function() {
-                        if (this.vars.cancel && this.vars.applied) {
-                            resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats), false);
-                            this.vars.applied = false;
-                        } else if (!this.vars.cancel && !this.vars.applied) {
-                            resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats));
-                            this.vars.applied = true;
-                        }
-                    }
+                    function() {}
                 );
-                new Modifier("Ex-Revolutionary penalty", "Defense, evasion, resist, and presence decrease", { caster: this, target: this, properties: ["physical", "penalty"], stats: { defense: -10, evasion: -15, resist: -30, presence: -40 }, cancel: false, applied: true, focus: true, penalty: true },
+                new Modifier("Ex-Revolutionary penalty", "Defense, evasion, resist, and presence decrease", { caster: this, target: this, properties: ["physical", "penalty"], stats: { defense: -10, evasion: -15, resist: -30, presence: -40 }, focus: true, penalty: true },
                     function() { resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats)) },
-                    function(context) {},
-                    function() {
-                        if (this.vars.cancel && this.vars.applied) {
-                            resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats), false);
-                            this.vars.applied = false;
-                        } else if (!this.vars.cancel && !this.vars.applied) {
-                            resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats));
-                            this.vars.applied = true;
-                        }
-                    }
+                    function() {}
                 );
             }
         },
