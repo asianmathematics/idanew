@@ -1,5 +1,6 @@
+const allUnits = [];
 class Unit {
-    constructor(name, stat, elements, actionsInit, passivesInit) {
+    constructor(name, stat, elements = []) {
         this.name = name;
         this.base = {
             hp: stat[0],
@@ -46,7 +47,6 @@ class Unit {
         this.previousAction = [false, false, false];
         this.stun = false;
         this.cancel = false;
-        this.actionsInit = actionsInit;
     }
 }
 
@@ -59,9 +59,8 @@ function createUnit(unit, team) {
     if (newUnit.position === "mid") newUnit.position = "back";
     newUnit.team = team;
     allUnits.push(newUnit);
-    newUnit.actionsInit();
-    newUnit.passivesInit?.();
     newUnit.timer = 1000;
+    newUnit.source = unit;
     return newUnit;
 }
 
@@ -70,20 +69,16 @@ function cloneUnit(unit) {
         name: unit.name,
         description: unit.description,
         previousAction: [false, false, false],
-        base: {...unit.base},
+        base: {...unit.base, elements: [...unit.base.elements]},
         mult: {...unit.mult},
         skills: {},
-        elements: [...unit.base.elements],
         stun: false,
         cancel: false,
         learnedSkills: []
     };
-    newUnit.actionsInit = unit.actionsInit;
-    if (unit.passivesInit) {
-        newUnit.passives = {};
-        newUnit.passivesInit = unit.passivesInit;
-    }
-    for (const stat in newUnit.base) newUnit[stat] = newUnit.base[stat];
+    for (const stat in newUnit.base) if (stat !== 'elements') newUnit[stat] = newUnit.base[stat];
+    newUnit.elements = [...unit.base.elements];
     return newUnit;
 }
-export { Unit, createUnit, cloneUnit }
+
+export { Unit, createUnit, cloneUnit, allUnits };

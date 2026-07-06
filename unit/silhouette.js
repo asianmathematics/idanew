@@ -1,40 +1,33 @@
-import { setUnit, sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, playerTurn, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, allUnits, modifiers, currentUnit, currentAction, elements, eventState } from '../combatDictionary.js';
-import { Unit, createUnit, cloneUnit } from './unit.js';
+import { setUnit, sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentUnit, currentAction, elements, eventState } from '../combatDictionary.js';
+import { Unit, createUnit, cloneUnit, allUnits } from './unit.js';
 
 export const Silhouette = new Unit("Silhouette", [650, 24, 25, 110, 160, 135, 140, 75, 50, "mid", 80, 80, 10, 100, 16]);
 
-const skills = {
+Silhouette.description = "3-star mystic unit with high hit/resist from attacks/crit/debuffs but low defensive stats and speed, can summon shadows.";
+
+Silhouette.skills = {
     special: [
         {
             name: "Shadow Blade",
             properties: ["physical", "stamina", "mystic", "mana", "attack"],
             cost: { stamina: 10, mana: 20, position: "front" },
             description: "Cost 10 stamina & 20 mana, frontline only\nMakes 4 attacks at a single target with increased accuracy and damage",
-            target: () => this.stamina < 10 || this.mana < 20 ? showMessage("Not enough resources!", "error", "selection") : this.team === "player" ? selectTarget(this.actions.special, () => { playerTurn(this) }, [1, true, unitFilter("enemy", "front", false)]) : this.actions.special.code(randTarget(unitFilter("player", "front", false))),
-            code: (target) => {
-                [this.previousAction[0], this.previousAction[1]] = [true, true];
-                this.stamina -= 10;
-                this.mana -= 20;
-                attack(this, target, 4, { attacker: { damage: this.damage + 18, accuracy: this.accuracy + 50 } })
-            }
+            target() { this.team === "player" ? selectTarget(this.skills.special, [1, true, unitFilter("enemy", "front", false)]) : this.skills.special.code.call(this, randTarget(unitFilter("player", "front", false))) },
+            code(target) { attack(this, target, 4, { attacker: { damage: { bonus: 18 }, accuracy: { bonus: 50 } } }) }
         },
         {
             name: "Fear of the Dark",
             properties: ["physical", "stamina", "mystic", "mana", "buff", "debuff", "positional"],
             cost: { stamina: 15, mana: 25 },
             description: "Cost 15 stamina & 25 mana\nIncreases evasion/focus/presence, gives advantage to attacks at frontline, decreases enemy accuracy or focus of attacks/debuff to self at the backline, lasts 4 turns, 1% chance to fail to give advantage or decrease stats",
-            code: () => {
-                if (this.stamina < 15 || this.mana < 25) return showMessage("Not enough resources!", "error", "selection");
-                [this.previousAction[0], this.previousAction[1]] = [true, true];
-                this.stamina -= 15;
-                this.mana -= 25;
+            code() {
                 basicModifier("Fear of the Dark buff", "Increases evasion/focus/presence", { caster: this, target: this, duration: 5, properties: ["physical", "mystic", "buff"], stats: { evasion: 40, focus: 20, presence: 40 }, listeners: { turnEnd: true }, focus: true });
                 new Modifier("Fear of the Dark", "Gives advantage to attacks at frontline, decreases enemy accuracy or focus of attacks/debuff to self at the backline, 1% chance to fail",
-                    { caster: this, target: this, duration: 5, properties: ["physical", "mystic", "buff", "debuff", "positional"], listeners: { turnEnd: true, attackStart: true, resistStart: true }, cancelListeners: ['attackStart', 'resistStart'], focus: true },
+                    { caster: this, target: this, duration: 5, properties: ["physical", "mystic", "buff", "debuff", "positional"], listeners: { turnEnd: true, attackStart: true, resistStart: true }, cancelListeners: ['attackStart', 'resistStart'], focus: true, debuffing: 0 },
                     function() {},
                     function(context) {
-                        if (this.vars.caster.position === "back" && context.defenders?.includes(this.vars.caster) && resistDebuff(this.vars.caster, context.attacker)[0] >= 2) context.event === "attackStart" ? context.calcMods.attacker = { ...context.calcMods.attacker, accuracy: context.calcMods?.attacker?.accuracy - 40 || context.attacker.accuracy - 40 } : context.calcMods.attacker = { ...context.calcMods.attacker, focus: context.calcMods?.attacker?.focus - 40 || context.attacker.focus - 40 };
-                        else if (this.vars.caster.position === "front" && context.attacker === this.vars.caster) for (const defender of context.defenders) if (resistDebuff(this.vars.caster, defender)[0] >= 2) (context.calcMods.all ??= { reroll: 0 }).reroll++;
+                        if (this.vars.caster.position === "back" && context.defenders?.includes(this.vars.caster) && !this.vars.debuffing++ && resistDebuff(this.vars.caster, [context.attacker])[this.vars.debuffing = 0] >= 2) context.event === "attackStart" ? context.calcMods.attacker = { ...context.calcMods.attacker, accuracy: context.calcMods?.attacker?.accuracy - 40 || context.attacker.accuracy - 40 } : context.calcMods.attacker = { ...context.calcMods.attacker, focus: context.calcMods?.attacker?.focus - 40 || context.attacker.focus - 40 };
+                        else if (this.vars.caster.position === "front" && context.attacker === this.vars.caster && !this.vars.debuffing++) for (const defender of context.defenders) if (resistDebuff(this.vars.caster, [defender])[this.vars.debuffing = 0] >= 2) (context.calcMods.all ??= { reroll: 0 }).reroll++;
                         if (context.unit === this.vars.caster) this.vars.duration--;
                         return this.vars.duration <= 0;
                     }
@@ -45,11 +38,11 @@ const skills = {
             name: "Summon Shadow",
             properties: ["mystic", "mana", "summon", "positional"],
             cost: { mana: 60 },
-            description: "Cost 60 mana\nSummon shadow clone of a ally unit in the same position with 1 star stats for 6 turns",
-            target: () => this.mana < 60 ? showMessage("Not enough mana!", "error", "selection") : this.team === "player" ? selectTarget(this.actions.special, () => { playerTurn(this) }, [1, true, unitFilter("player", this.position)]) : this.actions.special.code(randTarget(unitFilter("enemy", this.position))),
-            code: (target) => {
-                this.previousAction[1] =  true;
-                this.mana -= 60;
+            description: "Cost 60 mana\nSummon shadow clone of a ally unit in the same position with 1 star stats for 6 turns, only one of the same clone can be summoned at a time",
+            target() { this.team === "player" ? selectTarget(this.skills.special, [1, true, unitFilter("player", this.position)]) : this.skills.special.code.call(this, randTarget(unitFilter("enemy", this.position))) },
+            code(target) {
+                if (!target) return showMessage("No shadow clones can be summoned!", "error", "selection");
+                if (allUnits.find(obj => obj.custom?.summoner === this && obj.name === target.name + " (Shadow)")) return showMessage("A shadow clone of this unit is already summoned!", "error", "selection");
                 const clone = createUnit({ ...target, name: target.name + " (Shadow)" }, this.team);
                 clone.custom = { ...target.custom, summoner: this };
                 for (const stat in clone.base.filter(s => s !== "position" && s !== "elements" )) clone.base[stat] = Math.ceil(clone.base[stat] * 4 / 9);
@@ -79,26 +72,23 @@ const skills = {
             properties: ["mystic", "mana", "buff"],
             cost: { mana: 40 },
             description: "Cost 40 mana\nShadow summons gain a star up equivalent stat increase, except for hp and resources, also gains the Fear of the Dark buff if active, lasts 4 turns",
-            code: () => {
-                if (this.mana < 40) return showMessage("Not enough mana!", "error", "selection");
-                this.previousAction[1] = true;
-                this.mana -= 40;
+            code() {
                 logAction(`${this.name} supports the shadows!`, "buff");
                 new Modifier("Friends with the Shadows", "Shadow summons gain a star up equivalent stat increase, except for hp and resources, also gains the Fear of the Dark buff if active",
-                    { caster: this, targets: this, duration: 4, properties: ["mystic", "buff"], listeners: { turnStart: true, unitChange: true, modifierStart: true, modifierEnd: true }, focus: true},
+                    { caster: this, targets: allUnits.filter(u => u.custom?.summoner === this), duration: 4, properties: ["mystic", "buff"], listeners: { turnStart: true, unitChange: true, modifierStart: true, modifierEnd: true }, cancelListeners: ['unitChange', 'modifierStart', 'modifierEnd'], focus: true},
                     function() {
                         const mod = modifiers.find(m => m.name === "Fear of the Dark" && m.vars.caster === this.vars.caster);
-                        if (mod.vars?.passive) delete this.vars.modifierStart, delete this.vars.modifierEnd;
+                        if (mod.vars?.passive) delete this.vars.modifierStart, delete this.vars.modifierEnd, this.vars.cancelListeners.splice(1);
                         for (const target of this.vars.targets) {
-                            if (mod) new Modifier(mod.name + " copy", mod.description, { ...mod.vars, target: target, stats: { ...mod.vars.stats }, listeners: {}, cancelListeners: {}}, mod.init, mod.onTurn, mod.cancel, mod.changeTarget);
-                            basicModifier("Friends with the Shadows buff", "Star up equivalent stat increase", { caster: this.vars.caster, target: target, properties: ["mystic", "mana", "buff"], stats: Object.fromEntries(Object.keys(target.mult).map(k => [k, Math.ceil(target.base[k] * 1.5)])), cancelListeners: {}})
+                            if (mod) new Modifier("Fear of the Dark copy", mod.description, { ...mod.vars, target: target, stats: { ...mod.vars.stats }, listeners: undefined, cancelListeners: undefined}, mod.init, mod.onTurn, mod.cancel, mod.changeTarget);
+                            basicModifier("Friends with the Shadows buff", "Star up equivalent stat increase", { caster: this.vars.caster, target: target, properties: ["mystic", "mana", "buff"], stats: Object.fromEntries(Object.keys(target.mult).map(k => [k, Math.ceil(target.base[k] * 1.5)])) })
                         }
                     },
                     function(context) {
                         if (this.vars.applied) {
                             if (context.type === 'summon' && context.unit.custom?.summoner === this.vars.caster) this.changeTarget([], [context.unit])
                             else if (context.type === 'unsummon' && context.unit.custom?.summoner === this.vars.caster) this.changeTarget([context.unit]);
-                            else if (context.event === 'modifierStart' && context.modifier.name === "Fear of the Dark" && context.modifier.vars.target === this.vars.caster) for (const target of this.vars.targets) new Modifier(context.modifier.name + " copy", context.modifier.description, { ...context.modifier.vars, target: target, listeners: {}, cancelListeners: {}}, context.modifier.init, context.modifier.onTurn, context.modifier.cancel, context.modifier.changeTarget);
+                            else if (context.event === 'modifierStart' && context.modifier.name === "Fear of the Dark" && context.modifier.vars.target === this.vars.caster) for (const target of this.vars.targets) new Modifier("Fear of the Dark copy", context.modifier.description, { ...context.modifier.vars, target: target, listeners: undefined, cancelListeners: undefined}, context.modifier.init, context.modifier.onTurn, context.modifier.cancel, context.modifier.changeTarget);
                             else if (context.event === 'modifierEnd' && context.modifier.name === "Fear of the Dark" && context.modifier.vars.target === this.vars.caster) for (const target of this.vars.targets) removeModifier(modifiers.find(m => m.name === "Fear of the Dark copy" && m.vars.target === target));
                         }
                         if (context.event === 'turnStart' && context.unit === this.vars.caster) this.vars.duration--
@@ -107,22 +97,20 @@ const skills = {
                     function(cancel, temp) {
                         if (!temp) {
                             if (this.vars.cancel && this.vars.applied) {
-                                modifiers.filter(m => this.vars.target.includes(m.vars.target) && m.vars.caster === this.vars.caster).forEach(m => removeModifier(m))
+                                modifiers.filter(m => this.vars.targets.includes(m.vars.target) && m.vars.caster === this.vars.caster).forEach(m => removeModifier(m))
                                 this.vars.applied = false;
-                                for (const listener in this.vars.listeners) {
-                                    if (listener === "turnStart") continue;
+                                for (const listener of this.vars.cancelListeners) {
                                     this.vars.listeners[listener] = false;
                                     eventState[listener].splice(eventState[listener].indexOf(this), 1);
                                 }
                             } else if (!this.vars.cancel && !this.vars.applied) {
                                 const mod = modifiers.find(m => m.name === "Fear of the Dark" && m.vars.caster === this.vars.caster);
                                 for (const target of this.vars.targets) {
-                                    if (mod) new Modifier(mod.name + " copy", mod.description, { ...mod.vars, target: target, stats: { ...mod.vars.stats }, listeners: {}, cancel: false, applied: true }, mod.init, mod.onTurn, mod.cancel, mod.changeTarget);
-                                    basicModifier("Friends with the Shadows buff", "Star up equivalent stat increase", { caster: this.vars.caster, target: target, properties: ["mystic", "mana", "buff"], stats: Object.fromEntries(Object.keys(target.mult).map(k => [k, Math.ceil(target.base[k] * 1.5)])), cancel: false, applied: true, focus: false})
+                                    if (mod) new Modifier("Fear of the Dark copy", mod.description, { ...mod.vars, target: target, stats: { ...mod.vars.stats }, listeners: {}, cancel: false, applied: true }, mod.init, mod.onTurn, mod.cancel, mod.changeTarget);
+                                    basicModifier("Friends with the Shadows buff", "Star up equivalent stat increase", { caster: this.vars.caster, target: target, properties: ["mystic", "mana", "buff"], stats: Object.fromEntries(Object.keys(target.mult).map(k => [k, Math.ceil(target.base[k] * 1.5)])) })
                                 }
                                 this.vars.applied = true;
-                                for (const listener in this.vars.listeners) {
-                                    if (listener === "turnStart") continue;
+                                for (const listener of this.vars.cancelListeners) {
                                     this.vars.listeners[listener] = true;
                                     eventState[listener].push(this);
                                 }
@@ -138,8 +126,8 @@ const skills = {
                                 this.vars.targets.push(...add);
                                 const mod = modifiers.find(m => m.name === "Fear of the Dark" && m.vars.caster === this.vars.caster);
                                 for (const target of this.vars.targets) {
-                                    if (mod) new Modifier(mod.name + " copy", mod.description, { ...mod.vars, target: target, stats: { ...mod.vars.stats }, listeners: {}, cancel: false, applied: true }, mod.init, mod.onTurn, mod.cancel, mod.changeTarget);
-                                    basicModifier("Friends with the Shadows buff", "Star up equivalent stat increase", { caster: this.vars.caster, target: target, properties: ["mystic", "mana", "buff"], stats: Object.fromEntries(Object.keys(target.mult).map(k => [k, target.base[k] * 1.5])), cancel: false, applied: true, focus: false})
+                                    if (mod) new Modifier("Fear of the Dark copy", mod.description, { ...mod.vars, target: target, stats: { ...mod.vars.stats }, listeners: {}, cancel: false, applied: true }, mod.init, mod.onTurn, mod.cancel, mod.changeTarget);
+                                    basicModifier("Friends with the Shadows buff", "Star up equivalent stat increase", { caster: this.vars.caster, target: target, properties: ["mystic", "mana", "buff"], stats: Object.fromEntries(Object.keys(target.mult).map(k => [k, target.base[k] * 1.5])) })
                                 }
                             } else {
                                 for (let i = this.vars.targets.length - 1; i >= 0; i--) if (remove.includes(this.vars.targets[i])) this.vars.targets.splice(i, 1);
@@ -154,13 +142,10 @@ const skills = {
             name: "Amulet of Darkness",
             properties: ["physical", "stamina", "mana"],
             cost: { stamina: 40, position: 'back' },
-            description: `Cost 40 stamina, backline only\nHeals a lot (${this.healFactor * 2} HP) and regen some mana`,
-            code: () => {
-                if (this.stamina < 40) return showMessage("Not enough stamina!", "error", "selection");
-                this.previousAction[0] = true;
-                this.stamina -= 40;
+            description: `Cost 40 stamina, backline only\nHeals a lot (~20% max HP) and regen some mana (~20% max mana)`,
+            code() {
                 heal(this, [this], [2]);
-                resourceChange(this, { mana: this.manaRegen });
+                resourceChange(this, { mana: 2 * this.manaRegen });
             }
         },
         {
@@ -168,10 +153,7 @@ const skills = {
             properties: ["physical", "stamina", "mystic", "mana", "revive"],
             cost: { stamina: 15, mana: 25 },
             description: `Cost 15 stamina and 25 mana\nRevives for the next 6 turns, second and later revives unsummon a shadow and fails if no shadows can be unsummoned`,
-            code: () => {
-                if (this.stamina < 15 || this.mana < 25) return showMessage("Not enough resources!", "error", "selection");
-                [this.previousAction[0], this.previousAction[1]] = [true, true];
-                this.stamina -= 50;
+            code() {
                 new Modifier("But It Refused", `Revives once per turn`,
                     { caster: this, target: this, duration: 5, properties: ["physical", "mystic", "revive"], listeners: { turnStart: true, unitChange: true }, cancelListeners: ['unitChange'], uses: 1 },
                     function() {},
@@ -199,9 +181,8 @@ const skills = {
             name: "Switch Position",
             properties: ["physical", "stamina", "mystic", "mana", "positional"],
             description: "Switch between front and backline positions, perform both frontline & backline basic skills, and reduce timer by 50% for next turn",
-            code: () => {
-                [this.previousAction[0], this.previousAction[1]] = [true, true];
-                this.skills.basic.code();
+            code() {
+                this.skills.basic.code.call(this);
                 if (this.position === "back") {
                     this.position = "front";
                     logAction(`${this.name} shifts to the frontline.`, "info");
@@ -210,6 +191,7 @@ const skills = {
                     this.base.focus = 170;
                     this.base.resist = 100;
                     this.base.speed = 85;
+                    if (this.frontSkills) this.skills = {...this.frontSkills}
                 } else {
                     this.position = "back";
                     logAction(`${this.name} shifts to the backline.`, "info");
@@ -218,10 +200,11 @@ const skills = {
                     this.base.focus = 135;
                     this.base.resist = 140;
                     this.base.speed = 75;
+                    if (this.backSkills) this.skills = {...this.backSkills}
                 }
                 resetStat(this, ["attack", "evasion", "resist", "speed", "presence"]);
                 if (eventState.positionChange.length) handleEvent('positionChange', { unit: this, position: this.position === "back" ? "front" : "back" });
-                this.skills.basic.code();
+                this.skills.basic.code.call(this);
                 this.timer -= 500;
             }
         }
@@ -232,26 +215,22 @@ const skills = {
             properties: ["physical", "mystic", "attack"],
             cost: { position: "front" },
             description: "Frontline only\nMakes 2 attacks at a single target with increased accuracy and damage",
-            code: () => {
-                [this.previousAction[0], this.previousAction[1]] = [true, true];
-                attack(this, randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false)), 2, { attacker: { damage: this.damage + 18, accuracy: this.accuracy + 50 } })
-            }
+            code() { attack(this, randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false)), 2, { attacker: { damage: { bonus: 18 }, accuracy: { bonus: 50 } } }) }
         },
         {
             name: "Summon Shadow",
             properties: ["mystic", "mana", "summon", "positional"],
             cost: { mana: 20 },
-            description: "Cost 20 mana\nSummons a 1 star shadow for 4 turns",
-            target: () => this.mana < 20 ? showMessage("Not enough mana!", "error", "selection") : this.team === "player" ? selectTarget(this.actions.special, () => { playerTurn(this) }, [1, true, unitFilter("player", this.position)]) : this.actions.special.code(randTarget(unitFilter("enemy", this.position))),
-            code: (target) => {
-                this.previousAction[1] =  true;
-                this.mana -= 20;
+            description: "Cost 20 mana\nSummons a 1 star shadow for 4 turns, can't have more shadows than non-summon allies in the same position",
+            code() {
+                if (unitFilter(this.team, this.position).filter(obj => !obj.custom?.summoner).length <= allUnits.filter(obj => obj.custom?.summoner === this && obj.position === this.position).length) return showMessage("Cannot summon more shadows than allies in the same position!", "error", "selection");
                 logAction(`${this.name} creates a shadow.`, "action");
-                const clone = createUnit(new Unit("Shadow", [290, 13, 11, 49, 66, 60, 60, 30, 24, this.position, 16, 10, 1, 40, 8]));
-                clone.custom = { ...custom, summoner: this };
+                const clone = createUnit(new Unit("Shadow", [290, 13, 11, 49, 66, 60, 60, 30, 24, this.position, 16, 10, 1, 40, 8]), this.team);
+                clone.skills = shadowSkills;
+                clone.custom = { ...clone.custom, summoner: this };
                 if (eventState.unitChange.length) handleEvent('unitChange', { type: 'summon', unit: clone})
                 new Modifier("Summon Shadow", "Summon shadow clone of a ally unit in the same position with 1 star stats",
-                    { caster: this, target: clone, duration: 6, properties: ["mystic", "summon"], listeners: { turnEnd: true }, perm: true },
+                    { caster: this, target: clone, duration: 4, properties: ["mystic", "summon"], listeners: { turnEnd: true }, perm: true },
                     function() {},
                     function(context) {
                         if (context.unit === this.vars.target) this.vars.duration--;
@@ -271,22 +250,18 @@ const skills = {
         {
             name: "Amulet of Darkness",
             properties: ["physical", "stamina", "mana"],
-            cost: { stamina: 20, position: 'back' },
-            description: `Cost 20 stamina, backline only\nHeals moderately (${this.healFactor} HP) and regen some mana`,
-            code: () => {
-                if (this.stamina < 20) return showMessage("Not enough stamina!", "error", "selection");
-                this.previousAction[0] = true;
-                this.stamina -= 20;
+            cost: { stamina: 10, position: 'back' },
+            description: `Cost 10 stamina, backline only\nHeals moderately (~10% max HP) and regen some mana (~10% max mana)`,
+            code() {
                 heal(this, [this], [1]);
-                resourceChange(this, { mana: this.manaRegen/2 });
+                resourceChange(this, { mana: this.manaRegen });
             }
         },
         {
             name: "Switch Position",
             properties: ["physical", "mystic", "positional"],
             description: "Switch between front and backline positions and reduce timer by 25% for next turn",
-            code: () => {
-                [this.previousAction[0], this.previousAction[1]] = [true, true];
+            code() {
                 if (this.position === "back") {
                     this.position = "front";
                     logAction(`${this.name} shifts to the frontline.`, "info");
@@ -295,6 +270,7 @@ const skills = {
                     this.base.focus = 170;
                     this.base.resist = 100;
                     this.base.speed = 85;
+                    if (this.frontSkills) this.skills = {...this.frontSkills}
                 } else {
                     this.position = "back";
                     logAction(`${this.name} shifts to the backline.`, "info");
@@ -303,6 +279,7 @@ const skills = {
                     this.base.focus = 135;
                     this.base.resist = 140;
                     this.base.speed = 75;
+                    if (this.backSkills) this.skills = {...this.backSkills}
                 }
                 resetStat(this, ["attack", "evasion", "resist", "speed", "presence"]);
                 if (eventState.positionChange.length) handleEvent('positionChange', { unit: this, position: this.position === "back" ? "front" : "back" });
@@ -316,22 +293,22 @@ const skills = {
             properties: ["attack"],
             cost: { position: "front" },
             description: "Frontline only\nAttacks a single target with increased accuracy and damage",
-            code: () => { attack(this, randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false)), 1, { attacker: { damage: this.damage + 18, accuracy: this.accuracy + 50 } }) }
+            code() { attack(this, randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false)), 1, { attacker: { damage: { bonus: 18 }, accuracy: { bonus: 50 } } }) }
         },
         {
             name: "Fear of the Dark",
             properties: ["buff", "debuff", "positional"],
             description: "Increases evasion/focus/presence, chance to gives advantage to attacks at frontline, chance to decreases enemy accuracy or focus of attacks/debuff to self at the backline, until end of next turn",
-            code: () => {
+            code() {
                 const mod = modifiers.filter(m => m.name === "Fear of the Dark" && m.vars.caster === this);
                 mod.length ? mod.forEach(m => m.vars.duration++) :
                 basicModifier("Fear of the Dark buff", "Increases evasion/focus/presence", { caster: this, target: this, duration: 2, properties: ["physical", "mystic", "buff"], stats: { evasion: 20, focus: 10, presence: 20 }, listeners: { turnEnd: true }, focus: true }),
                 new Modifier("Fear of the Dark", "Gives advantage to attacks at frontline, decreases enemy accuracy or focus of attacks/debuff to self at the backline, 1% chance to fail",
-                    { caster: this, target: this, duration: 2, properties: ["physical", "mystic", "buff", "debuff", "positional"], listeners: { turnEnd: true, attackStart: true, resistStart: true }, cancelListeners: ['attackStart', 'resistStart'], focus: true },
+                    { caster: this, target: this, duration: 2, properties: ["physical", "mystic", "buff", "debuff", "positional"], listeners: { turnEnd: true, attackStart: true, resistStart: true }, cancelListeners: ['attackStart', 'resistStart'], focus: true, debuffing: 0 },
                     function() {},
                     function(context) {
-                        if (this.vars.caster.position === "back" && context.defenders?.includes(this.vars.caster) && resistDebuff(this.vars.caster, context.attacker)[0] > 24) context.event === "attackStart" ? context.calcMods.attacker = { ...context.calcMods.attacker, accuracy: context.calcMods?.attacker?.accuracy - 40 || context.attacker.accuracy - 40 } : context.calcMods.attacker = { ...context.calcMods.attacker, focus: context.calcMods?.attacker?.focus - 40 || context.attacker.focus - 40 };
-                        else if (this.vars.caster.position === "front" && context.attacker === this.vars.caster) for (const defender of context.defenders) if (resistDebuff(this.vars.caster, defender)[0] > 24) (context.calcMods.all ??= { reroll: 0 }).reroll++;
+                        if (this.vars.caster.position === "back" && context.defenders?.includes(this.vars.caster) && !this.vars.debuffing++ && resistDebuff(this.vars.caster, [context.attacker])[this.vars.debuffing = 0] > 24) context.event === "attackStart" ? context.calcMods.attacker = { ...context.calcMods.attacker, accuracy: context.calcMods?.attacker?.accuracy - 40 || context.attacker.accuracy - 40 } : context.calcMods.attacker = { ...context.calcMods.attacker, focus: context.calcMods?.attacker?.focus - 40 || context.attacker.focus - 40 };
+                        else if (this.vars.caster.position === "front" && context.attacker === this.vars.caster && !this.vars.debuffing++) for (const defender of context.defenders) if (resistDebuff(this.vars.caster, [defender])[this.vars.debuffing = 0] > 24) (context.calcMods.all ??= { reroll: 0 }).reroll++;
                         if (context.unit === this.vars.caster) this.vars.duration--;
                         return this.vars.duration <= 0;
                     }
@@ -342,20 +319,17 @@ const skills = {
             name: "Amulet of Darkness",
             properties: ["physical", "stamina", "mana"],
             cost: { position: 'back' },
-            description: `Cost 40 stamina, backline only\nHeals a bit (${this.healFactor/2} HP) and regen some mana`,
-            code: () => {
-                if (this.stamina < 40) return showMessage("Not enough stamina!", "error", "selection");
-                this.previousAction[0] = true;
-                this.stamina -= 40;
+            description: `Backline only\nHeals a bit (~5% max HP) and regen some mana (~5% max mana)`,
+            code() {
                 heal(this, [this], [.5]);
-                resourceChange(this, { mana: this.manaRegen/4 });
+                resourceChange(this, { mana: this.manaRegen / 2 });
             }
         },
         {
             name: "Switch Position",
             properties: ["positional"],
             description: "Switch between front and backline positions",
-            code: () => {
+            code() {
                 if (this.position === "back") {
                     this.position = "front";
                     logAction(`${this.name} shifts to the frontline.`, "info");
@@ -364,6 +338,7 @@ const skills = {
                     this.base.focus = 170;
                     this.base.resist = 100;
                     this.base.speed = 85;
+                    if (this.frontSkills) this.skills = {...this.frontSkills}
                 } else {
                     this.position = "back";
                     logAction(`${this.name} shifts to the backline.`, "info");
@@ -372,6 +347,7 @@ const skills = {
                     this.base.focus = 135;
                     this.base.resist = 140;
                     this.base.speed = 75;
+                    if (this.backSkills) this.skills = {...this.backSkills}
                 }
                 resetStat(this, ["attack", "evasion", "resist", "speed", "presence"]);
                 if (eventState.positionChange.length) handleEvent('positionChange', { unit: this, position: this.position === "back" ? "front" : "back" });
@@ -383,15 +359,16 @@ const skills = {
             name: "Fear of the Dark",
             properties: ["buff", "debuff", "positional"],
             description: "Reduces stamina regen by 1 and mana regen by 2\nIncreases evasion/focus/presence, chance to gives advantage to attacks at frontline, chance to decreases enemy accuracy or focus of attacks/debuff to self at the backline",
-            code: () => {
+            code() {
                 this.base.staminaRegen--;
                 this.base.manaRegen -= 2;
+                resetStat(this, ['staminaRegen', 'manaRegen']);
                 new Modifier("Fear of the Dark", "Gives advantage to attacks at frontline, decreases enemy accuracy or focus of attacks/debuff to self at the backline",
-                    { caster: this, target: this, properties: ["physical", "mystic", "buff", "debuff", "positional"], stats: { evasion: 20, focus: 10, presence: 20 }, listeners: { turnEnd: true, attackStart: true, resistStart: true }, cancelListeners: ['attackStart', 'resistStart'], focus: true, passive: true },
+                    { caster: this, target: this, properties: ["physical", "mystic", "buff", "debuff", "positional"], stats: { evasion: 20, focus: 10, presence: 20 }, listeners: { attackStart: true, resistStart: true }, cancelListeners: ['attackStart', 'resistStart'], focus: true, passive: true, debuffing: 0 },
                     function() { resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats)) },
                     function(context) {
-                        if (this.vars.caster.position === "back" && context.defenders.includes(this.vars.caster) && resistDebuff(this.vars.caster, context.attacker)[0] > 33) context.event === "attackStart" ? context.calcMods.attacker = { ...context.calcMods.attacker, accuracy: context.calcMods?.attacker?.accuracy - 40 || context.attacker.accuracy - 40 } : context.calcMods.attacker = { ...context.calcMods.attacker, focus: context.calcMods?.attacker?.focus - 40 || context.attacker.focus - 40 };
-                        else if (this.vars.caster.position === "front" && context.attacker === this.vars.caster) for (const defender of context.defenders) if (resistDebuff(this.vars.caster, defender)[0] > 33) (context.calcMods.all ??= { reroll: 0 }).reroll++;
+                        if (this.vars.caster.position === "back" && context.defenders.includes(this.vars.caster) && !this.vars.debuffing++ && resistDebuff(this.vars.caster, [context.attacker])[this.vars.debuffing = 0] > 33) context.event === "attackStart" ? context.calcMods.attacker = { ...context.calcMods.attacker, accuracy: context.calcMods?.attacker?.accuracy - 40 || context.attacker.accuracy - 40 } : context.calcMods.attacker = { ...context.calcMods.attacker, focus: context.calcMods?.attacker?.focus - 40 || context.attacker.focus - 40 };
+                        else if (this.vars.caster.position === "front" && context.attacker === this.vars.caster && !this.vars.debuffing++) for (const defender of context.defenders) if (resistDebuff(this.vars.caster, [defender])[this.vars.debuffing = 0] > 33) (context.calcMods.all ??= { reroll: 0 }).reroll++;
                     }
                 )
             }
@@ -400,10 +377,10 @@ const skills = {
             name: "Friends with the Shadows",
             properties: ["mystic", "mana", "buff"],
             description: "Reduces max mana by 40\nShadow summons get star up equivelant stats",
-            code: () => {
-                this.base.mana -= 40;
+            code() {
+                this.mana = (this.base.mana -= 40);
                 new Modifier("Friends with the Shadows", "Shadow summons get star up equivelant stats",
-                    { caster: this, targets: [], properties: ["mystic", "buff"], listeners: { unitChange: true }, focus: true, passive: true },
+                    { caster: this, targets: [], properties: ["mystic", "buff"], listeners: { unitChange: true }, cancelListeners: ['unitChange'], focus: true, passive: true },
                     function() {},
                     function(context) {
                         if (context.unit.custom?.summoner !== this.vars.caster) return;
@@ -415,19 +392,13 @@ const skills = {
                             if (this.vars.cancel && this.vars.applied) {
                                 modifiers.filter(m => m.name === "Friends with the Shadows buff" && m.vars.caster === this.vars.caster).forEach(m => m.cancel(true));
                                 this.vars.applied = false;
-                                for (const listener in this.vars.listeners) {
-                                    if (listener === "turnStart") continue;
-                                    this.vars.listeners[listener] = false;
-                                    eventState[listener].splice(eventState[listener].indexOf(this), 1);
-                                }
+                                this.vars.listeners.unitChange = false;
+                                eventState.unitChange.splice(eventState.unitChange.indexOf(this), 1);
                             } else if (!this.vars.cancel && !this.vars.applied) {
                                 for (const target of this.vars.targets) modifiers.filter(m => m.name === "Friends with the Shadows buff" && m.vars.caster === this.vars.caster && m.vars.target === target).forEach(m => m.cancel(false));
                                 this.vars.applied = true;
-                                for (const listener in this.vars.listeners) {
-                                    if (listener === "turnStart") continue;
-                                    this.vars.listeners[listener] = true;
-                                    eventState[listener].push(this);
-                                }
+                                this.vars.listeners.unitChange = true;
+                                eventState.unitChange.push(this);
                             }
                         }
                     },
@@ -452,9 +423,9 @@ const skills = {
             name: "Accursed Linage",
             properties: ["physical", "stamina", "mystic", "mana", "revive"],
             description: `Reduces max stamina by 10 and max mana by 20\nRevives at the cost of unsummmoning a shadow, fails if no shadow to unsummon`,
-            code: () => {
+            code() {
                 new Modifier("But It Refused", `Revives once per turn`,
-                    { caster: this, target: this, duration: 5, properties: ["physical", "mystic", "revive"], listeners: { unitChange: true }, cancelListeners: ['unitChange'] },
+                    { caster: this, target: this, duration: 5, properties: ["physical", "mystic", "revive"], listeners: { unitChange: true }, cancelListeners: ['unitChange'], passive: true },
                     function() {},
                     function(context) {
                         if (this.vars.applied && context.unit === this.vars.target && context.type === "downed") {
@@ -477,15 +448,16 @@ const skills = {
             name: "Fear of the Dark",
             properties: ["buff", "debuff", "positional"],
             description: "Reduces stamina regen by 1 and mana regen by 2\nIncreases evasion/focus/presence, chance to gives advantage to attacks at frontline, chance to decreases enemy accuracy or focus of attacks/debuff to self at the backline",
-            code: () => {
+            code() {
                 this.base.staminaRegen--;
                 this.base.manaRegen -= 2;
+                resetStat(this, ['staminaRegen', 'manaRegen']);
                 new Modifier("Fear of the Dark", "Gives advantage to attacks at frontline, decreases enemy accuracy or focus of attacks/debuff to self at the backline",
-                    { caster: this, target: this, properties: ["physical", "mystic", "buff", "debuff", "positional"], stats: { evasion: 30, focus: 15, presence: 30 }, listeners: { turnEnd: true, attackStart: true, resistStart: true }, cancelListeners: ['attackStart', 'resistStart'], focus: true, passive: true },
+                    { caster: this, target: this, properties: ["physical", "mystic", "buff", "debuff", "positional"], stats: { evasion: 30, focus: 15, presence: 30 }, listeners: { attackStart: true, resistStart: true }, cancelListeners: ['attackStart', 'resistStart'], focus: true, passive: true, debuffing: 0 },
                     function() { resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats)) },
                     function(context) {
-                        if (this.vars.caster.position === "back" && context.defenders.includes(this.vars.caster) && resistDebuff(this.vars.caster, context.attacker)[0] > 24) context.event === "attackStart" ? context.calcMods.attacker = { ...context.calcMods.attacker, accuracy: context.calcMods?.attacker?.accuracy - 40 || context.attacker.accuracy - 40 } : context.calcMods.attacker = { ...context.calcMods.attacker, focus: context.calcMods?.attacker?.focus - 40 || context.attacker.focus - 40 };
-                        else if (this.vars.caster.position === "front" && context.attacker === this.vars.caster) for (const defender of context.defenders) if (resistDebuff(this.vars.caster, defender)[0] > 24) (context.calcMods.all ??= { reroll: 0 }).reroll++;
+                        if (this.vars.caster.position === "back" && context.defenders.includes(this.vars.caster) && !this.vars.debuffing++ && resistDebuff(this.vars.caster, [context.attacker])[this.vars.debuffing = 0] > 24) context.event === "attackStart" ? context.calcMods.attacker = { ...context.calcMods.attacker, accuracy: context.calcMods?.attacker?.accuracy - 40 || context.attacker.accuracy - 40 } : context.calcMods.attacker = { ...context.calcMods.attacker, focus: context.calcMods?.attacker?.focus - 40 || context.attacker.focus - 40 };
+                        else if (this.vars.caster.position === "front" && context.attacker === this.vars.caster && !this.vars.debuffing++) for (const defender of context.defenders) if (resistDebuff(this.vars.caster, [defender])[this.vars.debuffing = 0] > 24) (context.calcMods.all ??= { reroll: 0 }).reroll++;
                     }
                 )
             }
@@ -494,10 +466,10 @@ const skills = {
             name: "Friends with the Shadows",
             properties: ["mystic", "mana", "buff"],
             description: "Reduces max mana by 40\nShadow summons get star and a half up equivelant stats",
-            code: () => {
-                this.base.mana -= 40;
+            code() {
+                this.mana = (this.base.mana -= 40);
                 new Modifier("Friends with the Shadows", "Shadow summons get star up equivelant stats",
-                    { caster: this, targets: [], properties: ["mystic", "buff"], listeners: { unitChange: true }, focus: true, passive: true },
+                    { caster: this, targets: [], properties: ["mystic", "buff"], listeners: { unitChange: true }, cancelListeners: ['unitChange'], focus: true, passive: true },
                     function() {},
                     function(context) {
                         if (context.unit.custom?.summoner !== this.vars.caster) return;
@@ -507,21 +479,15 @@ const skills = {
                     function(cancel, temp) {
                         if (!temp) {
                             if (this.vars.cancel && this.vars.applied) {
-                                modifiers.filter(m => this.vars.target.includes(m.vars.target) && m.vars.caster === this.vars.caster).forEach(m => m.cancel(true));
+                                modifiers.filter(m => this.vars.targets.includes(m.vars.target) && m.vars.caster === this.vars.caster).forEach(m => m.cancel(true));
                                 this.vars.applied = false;
-                                for (const listener in this.vars.listeners) {
-                                    if (listener === "turnStart") continue;
-                                    this.vars.listeners[listener] = false;
-                                    eventState[listener].splice(eventState[listener].indexOf(this), 1);
-                                }
+                                this.vars.listeners.unitChange = false;
+                                eventState.unitChange.splice(eventState.unitChange.indexOf(this), 1);
                             } else if (!this.vars.cancel && !this.vars.applied) {
                                 for (const target of this.vars.targets) modifiers.filter(m => m.name === "Friends with the Shadows buff" && m.vars.caster === this.vars.caster && m.vars.target === target).forEach(m => m.cancel(false));
                                 this.vars.applied = true;
-                                for (const listener in this.vars.listeners) {
-                                    if (listener === "turnStart") continue;
-                                    this.vars.listeners[listener] = true;
-                                    eventState[listener].push(this);
-                                }
+                                this.vars.listeners.unitChange = true;
+                                eventState.unitChange.push(this);
                             }
                         }
                     },
@@ -532,7 +498,7 @@ const skills = {
                                 modifiers.filter(m => remove.includes(m.vars.target) && m.vars.caster === this.vars.caster).forEach(m => removeModifier(m))
                                 for (let i = this.vars.targets.length - 1; i >= 0; i--) if (remove.includes(this.vars.targets[i])) this.vars.targets.splice(i, 1);
                                 this.vars.targets.push(...add);
-                                for (const target of this.vars.targets) basicModifier("Friends with the Shadows buff", "Star up equivalent stat increase", { caster: this.vars.caster, target: target, properties: ["mystic", "mana", "buff"], stats: Object.fromEntries(Object.keys(target.mult).map(k => [k, Math.ceil(target.base[k] * Math.pow(1.5, 1.5))])), cancel: false, applied: true, focus: false})
+                                for (const target of this.vars.targets) basicModifier("Friends with the Shadows buff", "Star up equivalent stat increase", { caster: this.vars.caster, target: target, properties: ["mystic", "mana", "buff"], stats: Object.fromEntries(Object.keys(target.mult).map(k => [k, Math.ceil(target.base[k] * Math.pow(1.5, 1.5))])) })
                             } else {
                                 for (let i = this.vars.targets.length - 1; i >= 0; i--) if (remove.includes(this.vars.targets[i])) this.vars.targets.splice(i, 1);
                                 this.vars.targets.push(...add);
@@ -543,4 +509,58 @@ const skills = {
             }
         }
     ]
+}
+
+Silhouette.frontDefaultSkills = [
+    { category: 'special', name: 'Friends with the Shadows' },
+    { category: 'basic', name: 'Summon Shadow' },
+    { category: 'secondary', name: 'Switch Position' },
+    { category: 'passive', name: 'Accursed Linage' },
+    { category: 'augment', name: 'Fear of the Dark' }
+];
+
+Silhouette.backDefaultSkills = [
+    { category: 'special', name: 'Friends with the Shadows' },
+    { category: 'basic', name: 'Summon Shadow' },
+    { category: 'secondary', name: 'Switch Position' },
+    { category: 'passive', name: 'Accursed Linage' },
+    { category: 'augment', name: 'Fear of the Dark' }
+];
+
+const shadowSkills = {
+    special: {
+        name: "Proliferate",
+        properties: ["summon"],
+        description: "If a target with a Strength Drain debuff is downed, create a new shadow",
+        code() {
+            if (modifiers.filter(m => m.name === "Strength Drain debuff").map(m => m.vars.target).some(t => t.hp <= 0)) {
+                const clone = createUnit(this, this.team);
+                clone.custom = { ...clone.custom, summoner: this};
+                if (eventState.unitChange.length) handleEvent('unitChange', { type: 'summon', unit: clone});
+            }
+        }
+    },
+    basic: {
+        name: "Strike",
+        properties: ["attack"],
+        description: "Attacks a single target",
+        code() { attack(this, randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false))) }
+    },
+    passive: {
+        name: "Strength Drain",
+        properties: ["mystic", "debuff"],
+        description: "On hit, reduce target attack until caster is out of combat, 1% chance to fail",
+        code() {
+            new Modifier("Strength Drain", "On hit, reduce target attack until caster is out of combat, 1% chance to fail",
+                { caster: this, target: this, properties: ['mystic', 'debuff'], listeners: { singleDamage: true }, cancelListeners: ['singleDamage'], passive: true },
+                function() {},
+                function(context) {
+                    if (context.attacker = this.vars.caster && context.damageSingle > 0) {
+                        const will = resistDebuff(this.vars.caster, [context.defender]);
+                        if (will >= 2) basicModifier("Strength Drain debuff", "Reduce target attack until caster is out of combat", { caster: this.vars.caster, target: context.defender, properties: ['mystic', 'debuff'], stats: { attack: -(will = 100 ? 6 : Math.ceil(will/25)) } });
+                    }
+                }
+            )
+        }
+    }
 }
