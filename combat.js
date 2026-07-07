@@ -30,9 +30,7 @@ import { startCombat as startSquadSelect } from './squadselect.js';
 // SQUAD SELECTION (Pre-battle setup)
 // ============================================
 
-export function startCombat() {
-    startSquadSelect();
-}
+export function startCombat() { startSquadSelect() }
 
 // ============================================
 // BATTLE DISPLAY (Grid-based UI)
@@ -107,9 +105,7 @@ function renderUnitCard(unit, isEnemy = false, inFrontline = false) {
 }
 
 function renderUnitStats(unit, isEnemy = false) {
-    if (unit.hp <= 0) {
-        return `<div style="text-align: center; color: #ff0055; font-style: italic; padding: 10px 0;">DEFEATED</div>`;
-    }
+    if (unit.hp <= 0) return `<div style="text-align: center; color: #ff0055; font-style: italic; padding: 10px 0;">DEFEATED</div>`;
     
     const timerProgress = Math.max(0, Math.min(100, 100 - (unit.timer / 10)));
     const hpPercentage = Math.max(0, Math.min(100, (unit.hp / unit.base.hp) * 100));
@@ -179,9 +175,7 @@ function renderUnitStats(unit, isEnemy = false) {
 function updateInspectorUnits() {
     const inspectorList = document.getElementById('inspector-unit-list');
     if (!inspectorList) return;
-    
     const playerUnits = allUnits.filter(u => u.team === 'player');
-    
     if (playerUnits.length === 0) {
         inspectorList.innerHTML = '<p style="color:#888; text-align:center; padding:20px;">No units in battle</p>';
         return;
@@ -193,27 +187,20 @@ function updateInspectorUnits() {
         const card = document.createElement('div');
         card.className = 'inspector-unit-card';
         card.dataset.unitName = unit.name;
-        if (unit.isExpanded) {
-            card.classList.add('expanded');
-        }
+        if (unit.isExpanded) card.classList.add('expanded');
         
         const isDefeated = unit.hp <= 0;
         const specialStatus = unit.specialReady ? 'READY' : (isDefeated ? 'DEFEATED' : 'Charging...');
         const statusClass = unit.specialReady ? 'ready' : '';
-        
-        const hpPercent = Math.round((unit.hp / unit.base.hp) * 100);
-        const staminaPercent = Math.round((unit.stamina / unit.base.stamina) * 100);
-        const timerPercent = Math.max(0, Math.round(100 - (unit.timer / 10)));
-        
         card.innerHTML = `
             <div class="inspector-unit-header">
                 <span class="inspector-unit-name">${unit.name}</span>
                 <span class="inspector-unit-status ${statusClass}">${specialStatus}</span>
             </div>
             <div class="inspector-mini-bars">
-                <div>HP: ${hpPercent}%</div>
-                <div>STA: ${staminaPercent}%</div>
-                <div>Timer: ${timerPercent}%</div>
+                <div>HP: ${Math.round((unit.hp / unit.base.hp) * 100)}%</div>
+                <div>STA: ${Math.round((unit.stamina / unit.base.stamina) * 100)}%</div>
+                <div>Timer: ${Math.max(0, Math.round(100 - (unit.timer / 10)))}%</div>
                 <div>Mode: ${unit.autoBehavior || 'basic'}</div>
             </div>
             <div class="inspector-unit-details">
@@ -231,17 +218,16 @@ function updateInspectorUnits() {
 }
 
 function renderUnitDetails(unit) {
-    const specialSkill = unit.skills?.special;
-    
     let html = `
         <div style="margin-top:10px; padding:10px; background:#0a0a0a; border:1px solid #333;">
-            <div style="font-size:12px; color:#888; margin-bottom:5px;">CURRENT STATS</div>
-            <div style="font-size:11px; color:#00ff88;">
-                Attack: ${Math.round(unit.attack)} | Defense: ${Math.round(unit.defense)} | Accuracy: ${Math.round(unit.accuracy)} | Evasion: ${Math.round(unit.evasion)}<br>
-                Focus: ${Math.round(unit.focus)} | Resist: ${Math.round(unit.resist)} | Speed: ${Math.round(unit.speed)} | Presence: ${Math.round(unit.presence)}<br>
-                Heal Factor: ${Math.round(unit.healFactor)} | Stamina Regen: ${Math.round(unit.staminaRegen)}${unit.mana ? ` | Mana Regen: ${Math.round(unit.manaRegen)}` : ''}${unit.energy ? ` | Energy Regen: ${Math.round(unit.EnergyRegen)}` : ''}
-            </div>
+        <div style="font-size:12px; color:#888; margin-bottom:5px;">CURRENT STATS</div>
+        <div style="font-size:11px; color:#00ff88; line-height: 1.5;">
+            <span style="white-space: nowrap;">Attack: ${Math.round(unit.attack)}</span> | <span style="white-space: nowrap;">Defense: ${Math.round(unit.defense)}</span> | <span style="white-space: nowrap;">Accuracy: ${Math.round(unit.accuracy)}</span> | 
+            <span style="white-space: nowrap;">Evasion: ${Math.round(unit.evasion)}</span> | <span style="white-space: nowrap;">Focus: ${Math.round(unit.focus)}</span> | <span style="white-space: nowrap;">Resist: ${Math.round(unit.resist)}</span> | 
+            <span style="white-space: nowrap;">Speed: ${Math.round(unit.speed)}</span> | <span style="white-space: nowrap;">Presence: ${Math.round(unit.presence)}</span> | <span style="white-space: nowrap;">Heal Factor: ${Math.round(unit.healFactor)}</span> | 
+            <span style="white-space: nowrap;">Stamina Regen: ${Math.round(unit.staminaRegen)}</span>${unit.mana ? ` | <span style="white-space: nowrap;">Mana Regen: ${Math.round(unit.manaRegen)}</span>` : ''}${unit.energy ? ` | <span style="white-space: nowrap;">Energy Regen: ${Math.round(unit.energyRegen)}</span>` : ''}
         </div>
+    </div>
     `;
     
     // Doctrine Toggle
@@ -258,25 +244,19 @@ function renderUnitDetails(unit) {
     `;
     
     // Special Activation Button
-    if (specialSkill && unit.hp > 0) {
-        const canActivate = unit.specialReady && unit.stamina >= (specialSkill.cost?.stamina || 0) && (unit.mana || 0) >= (specialSkill.cost?.mana || 0) && (unit.energy || 0) >= (specialSkill.cost?.energy || 0);
+    if (unit.skills?.special && unit.hp > 0) {
+        const canActivate = unit.specialReady && unit.stamina >= (unit.skills.special.cost?.stamina || 0) && (unit.mana || 0) >= (unit.skills.special.cost?.mana || 0) && (unit.energy || 0) >= (unit.skills.special.cost?.energy || 0);
         html += `
             <button class="activate-special-btn" data-unit="${unit.name}" ${!canActivate ? 'disabled' : ''}>
-                ⚡ Activate Special: ${specialSkill.name}
+                ⚡ Activate Special: ${unit.skills.special.name}
             </button>
         `;
     }
     
     // Skills List
     html += `<div style="margin-top:10px; font-size:11px; color:#888;">EQUIPPED SKILLS:</div>`;
-    if (unit.learnedSkills && unit.learnedSkills.length > 0) {
-        unit.learnedSkills.forEach(skill => {
-            html += `<div style="font-size:11px; color:#00aaff; margin:3px 0;">• ${skill.name}</div>`;
-        });
-    } else {
-        html += `<div style="font-size:11px; color:#666;">No skills equipped</div>`;
-    }
-    
+    if (unit.learnedSkills && unit.learnedSkills.length > 0) { unit.learnedSkills.forEach(skill => { html += `<div style="font-size:11px; color:#00aaff; margin:3px 0;">• ${skill.name}</div>` }) }
+    else html += `<div style="font-size:11px; color:#666;">No skills equipped</div>`;
     return html;
 }
 
@@ -287,32 +267,23 @@ function renderUnitDetails(unit) {
 function updateModifiers() {
     const modifiersContent = document.getElementById('modifiers-content');
     if (!modifiersContent) return;
-    
     let modDisplay = `<h3 style="border-bottom:2px solid #ff0055; padding-bottom:5px; margin-bottom:10px;">Active Modifiers</h3>`;
-    
-    if (modifiers.length === 0) {
-        modDisplay += `<p style="color:#888;">No active modifiers</p>`;
-    } else {
+    if (modifiers.length === 0) modDisplay += `<p style="color:#888;">No active modifiers</p>`;
+    else {
         modDisplay += `<ul class='modifier-list'>`;
         for (const modifier of modifiers) {
             const isCancelled = modifier.vars.cancel > 0;
             let targetDisplay = '';
             let fullTargets = '';
-            
             if (modifier.vars?.target) {
                 targetDisplay = modifier.vars.target.name;
                 fullTargets = modifier.vars.target.name;
             } else if (modifier.vars?.targets?.length) {
                 const targetNames = modifier.vars.targets.map(u => u.name);
                 fullTargets = targetNames.join(', ');
-                if (targetNames.length > 5) {
-                    const truncatedNames = targetNames.slice(0, 4).join(', ') + `, +${targetNames.length - 4} more`;
-                    targetDisplay = `<span class="modifier-targets truncated" data-full-targets="${fullTargets}">${truncatedNames}</span>`;
-                } else {
-                    targetDisplay = fullTargets;
-                }
+                if (targetNames.length > 5) targetDisplay = `<span class="modifier-targets truncated" data-full-targets="${fullTargets}">${targetNames.slice(0, 4).join(', ')}, +${targetNames.length - 4} more</span>`;
+                else targetDisplay = fullTargets;
             }
-            
             modDisplay += `
                 <li class="modifier-item ${isCancelled ? 'cancelled' : ''}">
                     <span class="modifier-caster">${modifier.vars.caster?.name || 'System'}'s</span>
@@ -325,7 +296,6 @@ function updateModifiers() {
         }
         modDisplay += `</ul>`;
     }
-    
     modifiersContent.innerHTML = modDisplay;
 }
 
@@ -337,17 +307,12 @@ function initTabSwitching() {
     const tabButtons = document.querySelectorAll('.tab-button');
     tabButtons.forEach(button => {
         button.addEventListener('click', () => {
-            const tabName = button.dataset.tab;
-            
             // Update button states
             tabButtons.forEach(btn => btn.classList.remove('active'));
             button.classList.add('active');
-            
             // Update content visibility
-            document.querySelectorAll('.tab-content').forEach(content => {
-                content.classList.remove('active');
-            });
-            document.getElementById(`tab-${tabName}`).classList.add('active');
+            document.querySelectorAll('.tab-content').forEach(content => { content.classList.remove('active') });
+            document.getElementById(`tab-${button.dataset.tab}`).classList.add('active');
         });
     });
 }
@@ -360,26 +325,17 @@ function initInspectorControls() {
     document.addEventListener('click', (e) => {
         // Doctrine toggle
         if (e.target.classList.contains('doctrine-btn')) {
-            const behavior = e.target.dataset.behavior;
-            const unitName = e.target.dataset.unit;
-            const unit = allUnits.find(u => u.name === unitName);
-            
+            const unit = allUnits.find(u => u.name === e.target.dataset.unit);
             if (unit) {
-                unit.autoBehavior = behavior;
-                logAction(`${unit.name} doctrine set to: ${behavior.toUpperCase()}`, 'info');
+                unit.autoBehavior = e.target.dataset.behavior;
+                logAction(`${unit.name} doctrine set to: ${e.target.dataset.behavior.toUpperCase()}`, 'info');
                 updateInspectorUnits();
             }
         }
         if (e.target.classList.contains('activate-special-btn')) {
-        // 1. Read the unit's name from the HTML data attribute
-        const unitName = e.target.dataset.unit;
-        // 2. Find the actual Unit object in the global array
-        const unit = allUnits.find(u => u.name === unitName);
-        // 3. Trigger the function we modified in the previous step
-        if (unit && unit.specialReady) {
-            unit.pendingSpecial = true;
+            const unit = allUnits.find(u => u.name === e.target.dataset.unit);
+            if (unit?.specialReady) unit.pendingSpecial = true;
         }
-    }
     });
 }
 
@@ -388,19 +344,14 @@ function initInspectorControls() {
 // ============================================
 
 export async function combatTick() {
-    if (currentUnit) {
-        currentUnit.timer += 1000;
-    }
+    if (currentUnit) currentUnit.timer += 1000;
     setUnit(null);
     updateBattleDisplay();
     await sleep(500);
-    
     if (frontTest()) return;
     if (currentTurn === -1) currentTurn = 0;
-    
     let turn;
     let isSpecialInterrupt = false;
-    
     // 1. CHECK FOR PENDING SPECIAL INTERRUPT
     const specialUnit = allUnits.find(u => u.hp > 0 && u.pendingSpecial);
     if (specialUnit) {
@@ -487,7 +438,7 @@ function executeAutoAction(unit, action) {
         if (unit.skills[action].properties.includes('mystic')) unit.previousAction[1] = true;
         if (unit.skills[action].properties.includes('techno')) unit.previousAction[2] = true;
         currentAction.push(unit.skills[action]);
-        unit.skills[action].target ? unit.skills[action].target.call(unit) : unit.skills[action].code.call(unit);
+        unit.skills[action].code.call(unit);
         currentAction.pop();
     }
     unit.specialReady = true;
@@ -552,48 +503,30 @@ function executeSpecialAction(unit, specialSkill) {
 export function advanceWave(x = 0) {
     if (x) wave = x;
     let turnId = allUnits[currentTurn]?.name;
-    
     if (wave < 3) {
         allUnits.splice(0, allUnits.length, ...allUnits.filter(unit => unit.team === 'player'));
-        for (const mod of modifiers) {
-            if (!allUnits.includes(mod.vars.caster)) {
-                removeModifier(mod);
-            }
-        }
+        for (const mod of modifiers) if (!allUnits.includes(mod.vars.caster)) removeModifier(mod);
     }
-    
     let i = allUnits.length;
     switch (wave) {
         case 2:
-            for (const e of waveCalc(unitFilter('player', ''), 1.5)) {
-                const enemyUnit = createUnit(e, 'enemy');
-                assignEnemySkills(enemyUnit, e);
-            }
+            for (const e of waveCalc(unitFilter('player', ''), 1.5)) assignEnemySkills(createUnit(e, 'enemy'), e);
             break;
         case 1:
-            for (const e of waveCalc(unitFilter('player', ''), 1)) {
-                const enemyUnit = createUnit(e, 'enemy');
-                assignEnemySkills(enemyUnit, e);
-            }
+            for (const e of waveCalc(unitFilter('player', ''), 1)) assignEnemySkills(createUnit(e, 'enemy'), e);
             break;
         default:
             return true;
     }
-    
     currentTurn = allUnits.findIndex(unit => unit.name === turnId);
     logAction(`<strong>Wave ${++wave}!</strong>`, 'turn');
-    
-    if (eventState.waveChange.length) {
-        handleEvent('waveChange', { wave });
-    }
-    
+    if (eventState.waveChange.length) handleEvent('waveChange', { wave });
     updateBattleDisplay();
 }
 
 function waveCalc(units, mult) {
     const total = units.filter(s => !s.custom?.summoner).reduce((sum, u) => sum + (2.25 ** (+u.description[0] - 1)), 0) * mult;
     let enemyPoints;
-    
     /*if (total >= 100) {
         enemyPoints = new Map([
             [Dreamer, 729/64], [mysticEnemy, 729/64], [technoEnemy, 729/64],
@@ -618,132 +551,89 @@ function waveCalc(units, mult) {
         [DexSoldier, 81/16], [FourArcher, 81/16], [Mannequin, 81/16],
         [Silhouette, 81/16]
     ]);
-    
     let enemies = [];
     let points = 0;
     //const front = [Experiment, Reject, enemy, ArtificialSolider, mysticEnemy, magitechEnemy].filter(e => enemyPoints.has(e));
     const front = [DexSoldier, Mannequin, Silhouette].filter(e => enemyPoints.has(e));
-
     while (points < total) {
-        const enem = points === 0
-            ? front[Math.floor(Math.random() * front.length)]
-            : Array.from(enemyPoints.keys())[Math.floor(Math.random() * enemyPoints.size)];
-        
+        const enem = points === 0 ? front[Math.floor(Math.random() * front.length)] : Array.from(enemyPoints.keys())[Math.floor(Math.random() * enemyPoints.size)];
         if (points + enemyPoints.get(enem) <= total || (Math.abs(total - points - enemyPoints.get(enem)) < Math.abs(total - points))) {
             enemies.push(enem);
             points += enemyPoints.get(enem);
-        } else {
-            break;
-        }
+        } else break;
     }
-    
     return enemies;
 }
 
 function assignEnemySkills(newUnit, template) {
     newUnit.skills = {};
     const categories = ['special', 'basic', 'secondary', 'passive', 'augment'];
-
     // Helper function to generate a loadout with mulligan logic for unique names
     const getLoadoutForPosition = (pos) => {
         // Fallback to generic defaultSkills if position-specific ones don't exist
         const defaultLoadout = (pos === 'front' ? template.frontDefaultSkills : template.backDefaultSkills) || template.defaultSkills;
-        const maxMulligans = 5; 
-        
         // Attempt to build a full, unique loadout
-        for (let attempt = 0; attempt < maxMulligans; attempt++) {
+        for (let attempt = 0; attempt < 5; attempt++) {
             const loadout = {};
             const usedNames = new Set();
             let isFullLoadout = true;
-            
             for (const category of categories) {
                 const availableSkills = template.skills[category];
                 if (!availableSkills) continue; // Skip if category doesn't exist on the template
-                
                 const skillsArray = Array.isArray(availableSkills) ? availableSkills : [availableSkills];
-                
                 // Filter by position and unique name
                 const validSkills = skillsArray.filter(skill => {
-                    const reqPos = skill.cost?.position?.trim();
-                    const isCorrectPos = !reqPos || reqPos === pos;
-                    const isUniqueName = !usedNames.has(skill.name.trim());
-                    return isCorrectPos && isUniqueName;
+                    const reqPos = skill.cost?.position;
+                    return (!reqPos || reqPos === pos) && !usedNames.has(skill.name);
                 });
-                
                 let selectedSkill = null;
-                
                 // 50% Chance to try the Default Skill first
                 if (Math.random() < 0.5 && defaultLoadout) {
                     const defaultDef = defaultLoadout.find(def => def.category === category);
                     if (defaultDef) {
-                        const defSkill = skillsArray.find(s => s.name.trim() === defaultDef.name.trim());
-                        if (defSkill && !usedNames.has(defSkill.name.trim())) {
-                            const reqPos = defSkill.cost?.position?.trim();
-                            if (!reqPos || reqPos === pos) {
-                                selectedSkill = defSkill;
-                            }
+                        const defSkill = skillsArray.find(s => s.name === defaultDef.name);
+                        if (defSkill && !usedNames.has(defSkill.name)) {
+                            const reqPos = defSkill.cost?.position;
+                            if (!reqPos || reqPos === pos) selectedSkill = defSkill;
                         }
                     }
                 }
-                
                 // Fallback to Random if default wasn't picked
-                if (!selectedSkill && validSkills.length > 0) {
-                    const randomIndex = Math.floor(Math.random() * validSkills.length);
-                    selectedSkill = validSkills[randomIndex];
-                }
-                
+                if (!selectedSkill && validSkills.length > 0) selectedSkill = validSkills[Math.floor(Math.random() * validSkills.length)];
                 if (selectedSkill) {
                     loadout[category] = selectedSkill;
-                    usedNames.add(selectedSkill.name.trim());
-                } else {
-                    // Category exists but we couldn't find a valid unique skill
-                    isFullLoadout = false; 
-                }
+                    usedNames.add(selectedSkill.name);
+                } else isFullLoadout = false;
             }
-            
             // If we successfully filled all existing categories with unique skills, return it
-            if (isFullLoadout) {
-                return loadout;
-            }
+            if (isFullLoadout) return loadout;
         }
-        
         // Final Fallback: If mulligans failed, allow empty slots to strictly prevent duplicates
         const fallbackLoadout = {};
         const fallbackUsedNames = new Set();
-        
         for (const category of categories) {
             const availableSkills = template.skills[category];
             if (!availableSkills) continue;
-            const skillsArray = Array.isArray(availableSkills) ? availableSkills : [availableSkills];
-            
-            const validSkills = skillsArray.filter(skill => {
-                const reqPos = skill.cost?.position?.trim();
-                return (!reqPos || reqPos === pos) && !fallbackUsedNames.has(skill.name.trim());
+            const validSkills = availableSkills.filter(skill => {
+                const reqPos = skill.cost?.position;
+                return (!reqPos || reqPos === pos) && !fallbackUsedNames.has(skill.name);
             });
-            
             if (validSkills.length > 0) {
                 const selectedSkill = validSkills[Math.floor(Math.random() * validSkills.length)];
                 fallbackLoadout[category] = selectedSkill;
-                fallbackUsedNames.add(selectedSkill.name.trim());
+                fallbackUsedNames.add(selectedSkill.name);
             }
             // If validSkills is empty, the slot remains empty (undefined)
         }
-        
         return fallbackLoadout;
     };
-
     // Handle Midline Units (Silhouette, Mannequin)
     if (template.base.position === 'mid') {
         newUnit.position = Math.random() > 0.5 ? 'front' : 'back'; 
         newUnit.frontSkills = getLoadoutForPosition('front');
         newUnit.backSkills = getLoadoutForPosition('back');
         newUnit.skills = newUnit.position === 'front' ? {...newUnit.frontSkills} : {...newUnit.backSkills};
-    } 
-    // Handle Standard Units (DexSoldier, FourArcher)
-    else {
-        newUnit.skills = getLoadoutForPosition(newUnit.position);
-    }
-
+    } else newUnit.skills = getLoadoutForPosition(newUnit.position);
     // Initialize passives and augments safely
     newUnit.skills.passive?.code?.call(newUnit);
     newUnit.skills.augment?.code?.call(newUnit);
@@ -752,35 +642,26 @@ function assignEnemySkills(newUnit, template) {
 function frontTest() {
     const playersAlive = unitFilter('player', 'front', false);
     const enemiesAlive = unitFilter('enemy', 'front', false);
-    
-    if (playersAlive.length && enemiesAlive.length) return;
-    
     if (!playersAlive.length) {
         const midLine = unitFilter('player', 'mid', false);
         if (midLine.length) {
             for (const unit of midLine) {
-                unit.source.skills.secondary.find(s => s.name === 'Switch Position').code.call(unit)
+                unit.switchPosition();
                 unit.timer += 1000;
             }
             logAction(`All player midline units moved to the frontline!`, 'turn');
-        } else {
-            showMessage('Defeat!', 'error', 'message-container', 0);
-            return true;
-        }
+        } else return !!showMessage('Defeat!', 'error', 'message-container', 0);
     }
     
     if (!enemiesAlive.length) {
         const midLine = unitFilter('enemy', 'mid', false);
         if (midLine.length) {
             for (const unit of midLine) {
-                unit.source.skills.secondary.find(s => s.name === 'Switch Position').code.call(unit)
+                unit.switchPosition();
                 unit.timer += 1000;
             }
             logAction(`All enemy midline units moved to the frontline!`, 'turn');
-        } else if (advanceWave() && !unitFilter('enemy', 'front', false).length) {
-            showMessage('Victory!', 'success', 'message-container', 0);
-            return true;
-        }
+        } else if (advanceWave() && !unitFilter('enemy', 'front', false).length) return !! showMessage('Victory!', 'success', 'message-container', 0);
     }
 }
 
@@ -796,19 +677,14 @@ document.addEventListener('DOMContentLoaded', () => {
     initTabSwitching();
     initInspectorControls();
 });
-
 // --- PAGE TRANSITION HANDLER ---
 document.addEventListener('DOMContentLoaded', () => {
     const pendingSquad = localStorage.getItem('pendingSquad');
-    
     if (pendingSquad) {
         // Clear the data so it doesn't trigger again on refresh
         localStorage.removeItem('pendingSquad');
         initializeCombatFromSquad(JSON.parse(pendingSquad));
-    } else {
-        // Fallback: If someone navigates directly to combat.html without a squad
-        startCombat(); 
-    }
+    } else startCombat(); 
 });
 
 function getSkillCategory(template, skillObj) {
@@ -821,55 +697,39 @@ function getSkillCategory(template, skillObj) {
 const unitLookup = {
     [DexSoldier.name]: DexSoldier,
     [FourArcher.name]: FourArcher,
-    [Mannequin.name]: Mannequin, // Note: Matches the exact name string in your unit file
+    [Mannequin.name]: Mannequin,
     [Silhouette.name]: Silhouette
 };
 function initializeCombatFromSquad(squadData) {
     // Hide any selection panels that might exist on the page
     const selectionPanel = document.getElementById('unit-selection-panel');
     if (selectionPanel) selectionPanel.style.display = 'none';
-    
     // Show the new grid layout
     const gameLayout = document.querySelector('.game-layout');
     if (gameLayout) gameLayout.style.display = 'flex';
-    
-
     // Reconstruct the units
     squadData.forEach(unitConfig => {
         const ref = unitLookup[unitConfig.templateName];
         const newUnit = createUnit(ref, 'player');  
-        
         // Map equipped skills to their categories (e.g., newUnit.skills.basic = <skillObj>)
         newUnit.skills = {};
-
         if (newUnit.base.position === 'mid') {
             newUnit.position = unitConfig.startingPosition;
             newUnit.frontSkills = {};
             newUnit.backSkills = {};
-            
             for (const skill of unitConfig.skills.front ) newUnit.frontSkills[skill.category] = ref.skills[skill.category].find(s => s.name === skill.name);
             for (const skill of unitConfig.skills.back ) newUnit.backSkills[skill.category] = ref.skills[skill.category].find(s => s.name === skill.name);
             // Set initial skills based on starting position
             newUnit.skills = unitConfig.startingPosition === 'front' ? {...newUnit.frontSkills} : {...newUnit.backSkills};
-        } else {
-            for (const skill of unitConfig.skills ) newUnit.skills[skill.category] = ref.skills[skill.category].find(s => s.name === skill.name);
-        }
+        } else for (const skill of unitConfig.skills ) newUnit.skills[skill.category] = ref.skills[skill.category].find(s => s.name === skill.name);
         newUnit.skills.passive?.code?.call?.(newUnit);
         newUnit.skills.augment?.code?.call?.(newUnit);
-        
         // Auto-battler properties
         newUnit.autoBehavior = newUnit.skills.basic ? 'basic' : newUnit.skills.secondary ? 'secondary' : 'none';
         newUnit.specialReady = true;
     });
-
     // Spawn Enemies
-    if (wave > 0) { 
-        for (const e of waveCalc(unitFilter("player", ""), .5)) { 
-            const enemyUnit = createUnit(e, 'enemy'); 
-            assignEnemySkills(enemyUnit, e);
-        } 
-    }
-    
+    if (wave > 0) for (const e of waveCalc(unitFilter("player", ""), .5)) assignEnemySkills(createUnit(e, 'enemy'), e);
     // Start the Auto-Battle Loop
     updateBattleDisplay();
     combatTick();

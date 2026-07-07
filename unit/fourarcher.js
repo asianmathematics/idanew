@@ -10,7 +10,7 @@ FourArcher.skills = {
         {
             name: "Perfect Shot",
             properties: ["mystic", "mana", "attack", "auto-hit", "auto-crit"],
-            cost: { mana: 40 },
+            cost: { mana: -40 },
             description: "Cost 40 mana\nDeals a critical hit to a single target, 99% chance to ignore half of defense",
             target() { this.team === "player" ? selectTarget(this.skills.special, [1, true, unitFilter("enemy", "front", false)]) : this.skills.special.code.call(this, randTarget(unitFilter("player", "front", false))) },
             code(target) { damage(this, target, [[4]], { defenders: { defense: { div: resistDebuff(this, target)[0] < 2 ? 1 : 2 } } }) }
@@ -18,7 +18,7 @@ FourArcher.skills = {
         {
             name: "Unnatural Luck",
             properties: ["mystic", "mana", "buff", "debuff"],
-            cost: { mana: 20 },
+            cost: { mana: -20 },
             description: "Cost 20 mana\nRolls all attacks/debuffs with advantage and opponent's attacks/debuffs to self has disadvantage until end of next turn, 1% chance to fail to give disadvantage.",
             code() {
                 new Modifier("Unnatural Luck", "Rolls all attacks/debuffs with advantage and opponent's attacks/debuffs to self has disadvantage, 1% chance to fail to give disadvantage.",
@@ -37,7 +37,7 @@ FourArcher.skills = {
         {
             name: "Lazing Around",
             properties: ["physical", "stamina", "mana", "penalty", "resource"],
-            cost: { stamina: 10 },
+            cost: { stamina: -10 },
             description: "Cost 10 stamina\nReduces speed until next turn then regain mana (~35% max mana)",
             code() {
                 new Modifier("Lazing Around", "Reduces speed and regen mana.",
@@ -56,7 +56,7 @@ FourArcher.skills = {
         {
             name: "Rebound Arc",
             properties: ["mystic", "mana", "buff"],
-            cost: { mana: 40 },
+            cost: { mana: -40 },
             description: "Cost 40 mana\nMissed attacks have a chance to hit a random enemy and non-crit guaranteed hits can make an attack to pierce a random enemy for 4 turns",
             code() {
                 new Modifier("Rebound Arc", "Missed attack have a chance to hit a random enemy and non-crit guaranteed hits can make an attack to pierce a random enemy",
@@ -122,6 +122,30 @@ FourArcher.skills = {
                 const target = randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false));
                 attack(this, target, 1, { max: [[.5]], defenders: { defense: { bonus: resistDebuff(this, target)[0] < 2 ? 0 : -10 } } });
             }
+        },
+        {
+            name: "Lazing Around",
+            properties: ["physical", "mana", "penalty", "resource"],
+            description: "Reduces speed until next turn then regain mana (~30% max mana)",
+            code() {
+                new Modifier("Lazing Around", "Reduces speed and regen mana.",
+                    { caster: this, target: this, duration: 1, properties: ["physical", "mana", "penalty", "resource"], stats: { speed: -10 }, listeners: { turnStart: true }, penalty: true },
+                    function() { resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats)) },
+                    function(context) {
+                        if (context.unit === this.vars.caster) {
+                            if (this.vars.applied) resourceChange(this.vars.caster, { mana: this.vars.caster.manaRegen * 3 });
+                            this.vars.duration--;
+                        }
+                        return this.vars.duration <= 0;
+                    }
+                );
+            }
+        },
+        {
+            name: "Lucky Aura",
+            properties: ["physical", "buff"],
+            description: "Increases 4 random ally accuracy/evasion/focus/resist/presence for one of their turns",
+            code() { for (const target in randTarget(unitFilter(this.team, '', false), 4, true)) basicModifier("Lucky Aura", "Increases accuracy/evasion/focus/resist/presence", { caster: this, target, duration: 2, properties: ["mystic", "mana", "buff"], stats: { accuracy: 25, evasion: 45, focus: 35, resist: 40, presence: 40 }, listeners: { turnStart: true } }) }
         },
         {
             name: "Luck Arrow",
@@ -218,23 +242,21 @@ FourArcher.skills = {
         {
             name: "Rebound Arc",
             properties: ["mystic", "mana", "buff"],
-            cost: { mana: 10 },
+            cost: { mana: -10 },
             description: "Missed attack have a chance to hit a random enemy and non-crit guaranteed hits can make an attack to pierce a random enemy, spend 10 mana after use",
             code() {
                 new Modifier("Rebound Arc", "Missed attack have a chance to hit a random enemy and non-crit guaranteed hits can make an attack to pierce a random enemy",
-                    { caster: this, target: this, properties: ["mystic", "mana", "buff"], listeners: { singleAttack: true, singleDamage: true }, cancelListeners: ['singleAttack', 'singleDamage'], passive: true, attacking: false },
+                    { caster: this, target: this, properties: ["mystic", "mana", "buff"], listeners: { singleAttack: true, singleDamage: true }, cancelListeners: ['singleAttack', 'singleDamage'], cost: { mana: -10 }, passive: true, attacking: false },
                     function() {},
                     function(context) {
-                        if (this.vars.attacking || this.vars.caster.mana < 10) return;
-                        if (context.event === "singleAttack" && context.attacker === this.vars.caster && context.hitSingle <= 0) {
+                        if (this.vars.attacking) return;
+                        if (context.event === "singleAttack" && context.attacker === this.vars.caster && context.hitSingle <= 0 && resourceChange(this.vars.caster, { mana: -10 })) {
                             this.vars.attacking = true;
                             let target = randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false));
                             if (resistDebuff(this.vars.caster, target)[0] > 70) crit(this.vars.caster, target, [[this.accuracy/4]]);
-                            resourceChange(this.vars.caster, { mana: -10 });
-                        } else if (context.event === "singleDamage" && context.attacker === this.vars.caster && (currentAction.at(-2).properties?.includes("auto-hit") || currentAction.at(-2).vars?.properties?.includes("auto-hit")) && context.critical < 1) {
+                        } else if (context.event === "singleDamage" && context.attacker === this.vars.caster && (currentAction.at(-2).properties?.includes("auto-hit") || currentAction.at(-2).vars?.properties?.includes("auto-hit")) && context.critical < 1 && resourceChange(this.vars.caster, { mana: -10 })) {
                             this.vars.attacking = true;
                             attack(this.vars.caster, randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false)), 1, context.calcMods)
-                            resourceChange(this.vars.caster, { mana: -10 });
                         }
                         this.vars.attacking = false;
                     }

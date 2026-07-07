@@ -10,7 +10,7 @@ DexSoldier.skills = {
         {
             name: "Hammer, Hammer, Hammer!",
             properties: ["physical", "stamina", "attack"],
-            cost: { stamina: 30 },
+            cost: { stamina: -30 },
             description: "Cost 30 stamina\nAttacks a single target with increased attack, accuracy, and focus.",
             target() {  this.team === "player" ? selectTarget(this.skills.special, [1, true, unitFilter("enemy", "front", false)]) : this.skills.special.code.call(this, randTarget(unitFilter("player", "front", false))) },
             code(target) { attack(this, target, 1, { attacker: { attack: { mult: 3 }, accuracy: { mult: 2.5 }, focus: { mult: 2 } } }) }
@@ -18,7 +18,7 @@ DexSoldier.skills = {
         {
             name: "Determination",
             properties: ["physical", "stamina", "heal"],
-            cost: { stamina: 50 },
+            cost: { stamina: -50 },
             description: `Cost 50 stamina\nImmediately heals a lot (~20% max HP) and moderately heals (~10% max HP) at start of turn for next 5 turns`,
             code() {
                 new Modifier("Determination", `Moderately heals at start of turn`,
@@ -37,8 +37,8 @@ DexSoldier.skills = {
         {
             name: "But It Refused",
             properties: ["physical", "stamina", "revive"],
-            cost: { stamina: 50 },
-            description: `Cost 50 stamina\nRevives once per turn for the next 5 turns`,
+            cost: { stamina: -70 },
+            description: `Cost 70 stamina\nRevives once per turn for the next 5 turns`,
             code() {
                 new Modifier("But It Refused", `Revives once per turn`,
                     { caster: this, target: this, duration: 5, properties: ["physical", "revive"], listeners: { turnStart: true, unitChange: true }, cancelListeners: ['unitChange'], uses: 1 },
@@ -64,8 +64,8 @@ DexSoldier.skills = {
         {
             name: "Guardian",
             properties: ["physical", "stamina"],
-            cost: { stamina: 70 },
-            description: "Cost 70 stamina\nRedirects all non-aoe attacks on the frontline to self with increased defense for 1 turn",
+            cost: { stamina: -50 },
+            description: "Cost 50 stamina\nRedirects all non-aoe attacks on the frontline to self with increased defense for 1 turn",
             code() {
                 new Modifier("Guardian", "Redirects attacks and increases defense",
                     { caster: this, target: this, duration: 1, properties: ["physical"], stats: { defense: 40 }, listeners: { attackStart: true, turnStart: true }, cancelListeners: ['attackStart'], focus: true },
@@ -91,9 +91,9 @@ DexSoldier.skills = {
         {
             name: "Last Stand",
             properties: ["physical", "stamina", "buff"],
-            cost: { stamina: 30 },
-            description: "Cost 30 stamina\nIncreases defense, resist, and presence for 3 turns",
-            code() { basicModifier("Last Stand", "Defense, resist, and presence increase", { caster: this, target: this, duration: 4, properties: ["physical", "buff"], stats: { defense: 35, resist: 60, presence: 150 }, listeners: {turnEnd: true}, focus: true }) }
+            cost: { stamina: -30 },
+            description: "Cost 30 stamina\nIncreases defense, resist, and presence for 5 turns",
+            code() { basicModifier("Last Stand", "Defense, resist, and presence increase", { caster: this, target: this, duration: 5, properties: ["physical", "buff"], stats: { defense: 35, resist: 60, presence: 150 }, listeners: { turnStart: true }, focus: true }) }
         }
     ],
     basic: [
@@ -106,7 +106,7 @@ DexSoldier.skills = {
         {
             name: "Determination",
             properties: ["physical", "stamina", "heal"],
-            cost: { stamina: 10 },
+            cost: { stamina: -10 },
             description: `Cost 10 stamina\nModerately heals (~10% max HP) at start of turn for next 3 turns`,
             code() {
                 new Modifier("Determination", `Moderately heals${this.team === "player" ? ` (~10% max HP)` : ''} at start of turn whenever stamina is at least half`,
@@ -125,7 +125,7 @@ DexSoldier.skills = {
         {
             name: "Guardian",
             properties: ["physical", "stamina"],
-            cost: { stamina: 20 },
+            cost: { stamina: -20 },
             description: "Cost 20 stamina\nRedirects all non-aoe attacks on lowest hp frontline unit to self for 1 turn",
             code() {
                 new Modifier("Guardian", "Redirects attacks from an ally and increases defense",
@@ -147,6 +147,16 @@ DexSoldier.skills = {
                         return this.vars.duration <= 0;
                     }
                 );
+            }
+        },
+        {
+            name: "Last Stand",
+            properties: ["physical", "buff"],
+            description: "Increases defense/resist/presence for 2 turns. If currently active, refreshes duration and allow stamina regen next turn",
+            code() {
+                const mod = modifiers.find(m => m.name === "Last Stand" && m.vars.caster === this)
+                if (mod) mod.vars.duration = 2, this.previousAction[0] = false;
+                else basicModifier("Last Stand", "Defense, resist, and presence increase", { caster: this, target: this, duration: 2, properties: ["physical", "buff"], stats: { defense: 25, resist: 30, presence: 100 }, listeners: {turnStart: true}, focus: true });
             }
         }
     ],
@@ -198,39 +208,34 @@ DexSoldier.skills = {
         {
             name: "But It Refused",
             properties: ["physical", "stamina", "revive"],
-            cost: { stamina: 30 },
-            description: `Cost 30 stamina\nRevives if have enough stamina`,
+            cost: { stamina: -50 },
+            description: `Cost 50 stamina\nRevives if have enough stamina`,
             code() {
                 new Modifier("But It Refused", `Revives`,
-                    { caster: this, target: this, properties: ["physical", "stamina", "revive"], listeners: { unitChange: true }, cancelListeners: ['unitChange'], passive: true },
+                    { caster: this, target: this, properties: ["physical", "stamina", "revive"], listeners: { unitChange: true }, cancelListeners: ['unitChange'], cost: { stamina: -50 }, passive: true },
                     function() {},
-                    function(context) {
-                        if (this.vars.applied && context.unit === this.vars.target && context.type === "downed" && this.vars.caster.stamina >= 30) {
-                            resourceChange(this.vars.caster, { stamina: -30 });
-                            heal(this.vars.caster, [this.vars.target], [3]);
-                        }
-                    }
+                    function(context) { if (this.vars.applied && context.unit === this.vars.target && context.type === "downed" && resourceChange(this.vars.caster, this.vars.cost)) { heal(this.vars.caster, [this.vars.target], [1]) } }
                 );
             }
         },
         {
             name: "Guardian",
             properties: ["physical", "stamina"],
-            cost: { stamina: 5 },
+            cost: { stamina: -5 },
             description: "Spends 5 stamina per redirect to redirect all non-aoe attacks on lowest hp frontline unit to self",
             code() {
                 new Modifier("Guardian", "Redirects attacks",
-                    { caster: this, target: this, duration: 1, properties: ["physical", "stamina"], listeners: { attackStart: true }, cancelListeners: ['attackStart'], focus: true, passive: true },
+                    { caster: this, target: this, duration: 1, properties: ["physical", "stamina"], listeners: { attackStart: true }, cancelListeners: ['attackStart'], cost: { stamina: -5 }, focus: true, passive: true },
                     function() { },
                     function(context) {
-                        if (this.vars.caster.stamina >= 5 && !currentAction.at(-2)?.properties?.includes("aoe") && !currentAction.at(-2)?.vars?.properties?.includes("aoe") && context.event === "attackStart" && context.attacker.team !== this.vars.target.team) {
+                        if (this.vars.caster.stamina >= this.vars.cost.stamina && !currentAction.at(-2)?.properties?.includes("aoe") && !currentAction.at(-2)?.vars?.properties?.includes("aoe") && context.event === "attackStart" && context.attacker.team !== this.vars.target.team) {
                             let redirect = 0;
                             for (let i = 0; i < context.defenders.length; i++) {
                                 const target = context.defenders[i];
-                                if (this.vars.caster.stamina < 5 ||target === this.vars.target || target.team !== this.vars.target.team || target.position !== "front" || context.calcMods.defenders?.[i]?.redirect) continue;
+                                if (target === this.vars.target || target.team !== this.vars.target.team || target.position !== "front" || context.calcMods.defenders?.[i]?.redirect || !resourceChange(this.vars.caster, this.vars.cost)) continue;
                                 context.defenders[i] = this.vars.target;
                                 ((context.calcMods.defenders ??= [])[i] ??= {}).redirect = [target, this.vars.target];
-                                resourceChange(this.vars.caster, { stamina: -5 });
+                                
                                 redirect++;
                             }
                             if (redirect > 0) logAction(`${this.vars.caster.name} redirects ${redirect} attack${redirect > 1 ? 's' : ''} to self!`, "crit");

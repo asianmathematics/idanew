@@ -78,6 +78,7 @@ function cloneUnit(unit) {
     };
     for (const stat in newUnit.base) if (stat !== 'elements') newUnit[stat] = newUnit.base[stat];
     newUnit.elements = [...unit.base.elements];
+    if (unit.switchPosition) newUnit.switchPosition = unit.switchPosition;
     return newUnit;
 }
 

@@ -23,33 +23,24 @@ function initUnitSelection() {
     const roster = document.getElementById('unit-roster');
     const selectedContainer = document.getElementById('selected-units');
     const countDisplay = selectedContainer.querySelector('h4');
-    
     roster.innerHTML = '';
     selectedContainer.innerHTML = '<h4>Selected Units (max of 6, 4 recommended)</h4>';
     selectedUnits = [];
-    
     availableUnits.forEach(unit => {
         const card = document.createElement('div');
         card.className = 'unit-card';
         card.dataset.unit = unit.name;
         card.innerHTML = `<strong>${unit.name}</strong>`;
-        
         card.addEventListener('click', () => {
             updateInfoDisplay(unit);
-            if (selectedUnits.length >= 6 && !card.classList.contains('selected')) {
-                showMessage('Maximum 6 units allowed!', 'warning', 'selection');
-                return;
-            }
-            
+            if (selectedUnits.length >= 6 && !card.classList.contains('selected')) return showMessage('Maximum 6 units allowed!', 'warning', 'selection');
             card.classList.toggle('selected');
             if (card.classList.contains('selected')) {
                 const isMidline = unit.base.position === 'mid';
                 const unitConfig = {
                     id: crypto.randomUUID(),
                     template: unit,
-                    skills: isMidline 
-                        ? { front: getDefaultSkills(unit, 'front'), back: getDefaultSkills(unit, 'back') }
-                        : getDefaultSkills(unit),
+                    skills: isMidline ? { front: getDefaultSkills(unit, 'front'), back: getDefaultSkills(unit, 'back') } : getDefaultSkills(unit),
                     startingPosition: isMidline ? 'back' : unit.base.position 
                 };
                 selectedUnits.push(unitConfig);
@@ -58,18 +49,13 @@ function initUnitSelection() {
                 selectedUnits = selectedUnits.filter(u => u.id !== card.dataset.configId);
                 delete card.dataset.configId; // FIX: Clear ID on deselect so it can be re-selected
             }
-            
             countDisplay.textContent = `Selected Units (${selectedUnits.length}/6)`;
             renderSelectedUnits();
         });
         roster.appendChild(card);
     });
-
     document.getElementById('start-with-selected').addEventListener('click', () => {
-        if (selectedUnits.length === 0) {
-            showMessage('Please select at least 1 unit!', 'error', 'selection');
-            return;
-        }
+        if (selectedUnits.length === 0) return showMessage('Please select at least 1 unit!', 'error', 'selection');
         let frontcheck = true;
         for (const unit of selectedUnits) {
             if (unit.startingPosition === "front") {
@@ -77,10 +63,7 @@ function initUnitSelection() {
                 break;
             }
         }
-        if (frontcheck) {
-            showMessage('Please select at least 1 non-backline unit!', 'error', 'selection');
-            return;
-        }
+        if (frontcheck) return showMessage('Please select at least 1 non-backline unit!', 'error', 'selection');
         startCombatWithSelected();
     });
 }
@@ -88,11 +71,8 @@ function initUnitSelection() {
 function getAllSkills(unitTemplate) {
     let allSkills = [];
     for (const category in unitTemplate.skills) {
-        if (Array.isArray(unitTemplate.skills[category])) {
-            allSkills.push(...unitTemplate.skills[category]);
-        } else if (unitTemplate.skills[category]) {
-            allSkills.push(unitTemplate.skills[category]);
-        }
+        if (Array.isArray(unitTemplate.skills[category])) allSkills.push(...unitTemplate.skills[category]);
+        else if (unitTemplate.skills[category]) allSkills.push(unitTemplate.skills[category]);
     }
     return allSkills;
 }
@@ -100,14 +80,10 @@ function getAllSkills(unitTemplate) {
 function getDefaultSkills(unitTemplate, position = null) {
     if (unitTemplate.base.position === 'mid' && position) {
         const key = `${position}DefaultSkills`;
-        if (unitTemplate[key] && Array.isArray(unitTemplate[key])) {
-            return resolveDefaultSkills(unitTemplate, unitTemplate[key]);
-        }
+        if (unitTemplate[key] && Array.isArray(unitTemplate[key])) return resolveDefaultSkills(unitTemplate, unitTemplate[key]);
         return [];
     }
-    if (unitTemplate.defaultSkills && Array.isArray(unitTemplate.defaultSkills)) {
-        return resolveDefaultSkills(unitTemplate, unitTemplate.defaultSkills);
-    }
+    if (unitTemplate.defaultSkills && Array.isArray(unitTemplate.defaultSkills)) return resolveDefaultSkills(unitTemplate, unitTemplate.defaultSkills);
     return [];
 }
 
@@ -120,26 +96,17 @@ function resolveDefaultSkills(template, defaultsArray) {
     }).filter(Boolean);
 }
 
-function getActiveSkillsArray() {
-    if (currentEditingPosition) {
-        return currentEditingUnit.skills[currentEditingPosition];
-    }
-    return currentEditingUnit.skills;
-}
+function getActiveSkillsArray() { return currentEditingPosition ? currentEditingUnit.skills[currentEditingPosition] : currentEditingUnit.skills }
 
 function openSkillSelection(unitConfig) {
     currentEditingUnit = unitConfig;
     currentEditingPosition = unitConfig.template.base.position === 'mid' ? unitConfig.startingPosition : null;
-    
     const panel = document.getElementById('skill-selection-panel');
     panel.style.display = 'block';
-    
     const unitNameHeader = document.getElementById('skill-unit-name');
     unitNameHeader.textContent = `${unitConfig.template.name} - Skill Setup`;
-    
     const oldToggle = document.getElementById('skill-pos-toggle');
     if (oldToggle) oldToggle.remove();
-    
     if (unitConfig.template.base.position === 'mid') {
         const toggleDiv = document.createElement('div');
         toggleDiv.id = 'skill-pos-toggle';
@@ -150,7 +117,6 @@ function openSkillSelection(unitConfig) {
             <button id="pos-back-btn" style="padding: 5px 15px; background: ${currentEditingPosition === 'back' ? '#060' : '#555'}; color: white; border: none; cursor: pointer; border-radius: 4px;">Backline</button>
         `;
         unitNameHeader.after(toggleDiv);
-        
         document.getElementById('pos-front-btn').onclick = () => {
             currentEditingPosition = 'front';
             openSkillSelection(unitConfig);
@@ -160,52 +126,29 @@ function openSkillSelection(unitConfig) {
             openSkillSelection(unitConfig);
         };
     }
-    
     renderSkillRoster();
     renderSelectedSkills();
-    
     document.getElementById('confirm-skills').onclick = () => {
         const maxSlots = currentEditingUnit.template.skillSlots || 5;
         const positionsToCheck = currentEditingUnit.template.base.position === 'mid' ? ['front', 'back'] : [null];
-        
         for (const pos of positionsToCheck) {
             const skills = pos ? currentEditingUnit.skills[pos] : currentEditingUnit.skills;
             const posLabel = pos ? ` for ${pos}line` : '';
-            
-            if (skills.length > maxSlots) {
-                showMessage(`You have selected ${skills.length} skills${posLabel}, but the maximum is ${maxSlots}.`, 'error', 'selection');
-                return;
-            }
-            
+            if (skills.length > maxSlots) return showMessage(`You have selected ${skills.length} skills${posLabel}, but the maximum is ${maxSlots}.`, 'error', 'selection');
             const names = skills.map(s => s.name);
             const duplicateNames = [...new Set(names.filter((name, index) => names.indexOf(name) !== index))];
-            if (duplicateNames.length > 0) {
-                showMessage(`Duplicate skill names${posLabel}: ${duplicateNames.join(', ')}.`, 'error', 'selection');
-                return;
-            }
-            
+            if (duplicateNames.length > 0) return showMessage(`Duplicate skill names${posLabel}: ${duplicateNames.join(', ')}.`, 'error', 'selection');
             const categories = skills.map(s => getSkillCategory(currentEditingUnit.template, s));
             const duplicateCategories = [...new Set(categories.filter((cat, index) => categories.indexOf(cat) !== index))];
-            if (duplicateCategories.length > 0) {
-                showMessage(`Duplicate skill types${posLabel}: ${duplicateCategories.join(', ')}.`, 'error', 'selection');
-                return;
-            }
+            if (duplicateCategories.length > 0) return showMessage(`Duplicate skill types${posLabel}: ${duplicateCategories.join(', ')}.`, 'error', 'selection');
         }
-        
         panel.style.display = 'none';
         renderSelectedUnits();
     };
-    
-    document.getElementById('cancel-skills').onclick = () => {
-        panel.style.display = 'none';
-    };
-    
+    document.getElementById('cancel-skills').onclick = () => { panel.style.display = 'none' };
     document.getElementById('reset-defaults').onclick = () => {
-        if (currentEditingPosition) {
-            currentEditingUnit.skills[currentEditingPosition] = getDefaultSkills(currentEditingUnit.template, currentEditingPosition);
-        } else {
-            currentEditingUnit.skills = getDefaultSkills(currentEditingUnit.template);
-        }
+        if (currentEditingPosition) currentEditingUnit.skills[currentEditingPosition] = getDefaultSkills(currentEditingUnit.template, currentEditingPosition);
+        else currentEditingUnit.skills = getDefaultSkills(currentEditingUnit.template);
         renderSelectedSkills();
         renderSkillRoster();
     };
@@ -223,33 +166,22 @@ function renderSkillRoster() {
     const roster = document.getElementById('skill-roster');
     roster.innerHTML = '';
     const activeSkills = getActiveSkillsArray();
-
     for (const category of ['special', 'basic', 'secondary', 'passive', 'augment']) {
         const skillsInCategory = currentEditingUnit.template.skills[category];
         if (!skillsInCategory) continue;
-        
         const skillsArray = Array.isArray(skillsInCategory) ? skillsInCategory : [skillsInCategory];
         if (skillsArray.length === 0) continue;
-
         const header = document.createElement('h4');
         header.style.cssText = `color: ${categoryColors[category]}; text-transform: uppercase; margin: 15px 0 5px 0; border-bottom: 1px solid ${categoryColors[category]}; padding-bottom: 4px; font-size: 14px;`;
         header.textContent = category;
         roster.appendChild(header);
-
         skillsArray.forEach(skill => {
             const requiredPos = skill.cost?.position;
-            if (currentEditingPosition && requiredPos && requiredPos !== currentEditingPosition) {
-                return; 
-            }
-
+            if (currentEditingPosition && requiredPos && requiredPos !== currentEditingPosition) return; 
             const isAlreadySelected = activeSkills.includes(skill); 
-            
             const skillDiv = document.createElement('div');
             skillDiv.style.cssText = `padding: 8px; margin: 5px 0; background: ${isAlreadySelected ? '#222' : '#333'}; border-left: 4px solid ${categoryColors[category]}; border-radius: 4px; cursor: ${isAlreadySelected ? 'not-allowed' : 'pointer'}; opacity: ${isAlreadySelected ? '0.5' : '1'}; transition: background 0.2s;`;
-            
-            const descText = skill.description ? skill.description.replace(/\n/g, '<br>') : '';
-            skillDiv.innerHTML = `<strong>${skill.name}</strong><br><small style="color: #ccc;">${descText}</small>`;
-            
+            skillDiv.innerHTML = `<strong>${skill.name}</strong><br><small style="color: #ccc;">${skill.description ? skill.description.replace(/\n/g, '<br>') : ''}</small>`;
             if (!isAlreadySelected) {
                 skillDiv.addEventListener('mouseenter', () => skillDiv.style.background = '#444');
                 skillDiv.addEventListener('mouseleave', () => skillDiv.style.background = '#333');
@@ -268,56 +200,37 @@ function renderSelectedSkills() {
     const list = document.getElementById('selected-skills-list');
     const countDisplay = document.getElementById('selected-skills-count');
     const maxSlots = currentEditingUnit.template.skillSlots || 5;
-    
     list.innerHTML = '';
-    
     // If it's a midline unit, show BOTH Front and Back loadouts simultaneously
     if (currentEditingUnit.template.base.position === 'mid') {
         countDisplay.textContent = `Skill Loadouts (${maxSlots} slots each)`;
-        
         // --- FRONTLINE LIST ---
         const frontHeader = document.createElement('h4');
         frontHeader.style.cssText = 'color: #4caf50; margin: 10px 0 5px 0; border-bottom: 1px solid #4caf50; padding-bottom: 4px;';
         frontHeader.textContent = `Frontline (${currentEditingUnit.skills.front.length}/${maxSlots})`;
         list.appendChild(frontHeader);
-        
         if (currentEditingUnit.skills.front.length === 0) {
             const emptyMsg = document.createElement('p');
             emptyMsg.style.cssText = 'color: #888; text-align: center; font-size: 12px; margin: 5px 0;';
             emptyMsg.textContent = 'No frontline skills selected';
             list.appendChild(emptyMsg);
-        } else {
-            currentEditingUnit.skills.front.forEach((skill, index) => {
-                list.appendChild(createSkillItem(skill, 'front', index));
-            });
-        }
-        
+        } else currentEditingUnit.skills.front.forEach((skill, index) => { list.appendChild(createSkillItem(skill, 'front', index)) });
         // --- BACKLINE LIST ---
         const backHeader = document.createElement('h4');
         backHeader.style.cssText = 'color: #2196f3; margin: 15px 0 5px 0; border-bottom: 1px solid #2196f3; padding-bottom: 4px;';
         backHeader.textContent = `Backline (${currentEditingUnit.skills.back.length}/${maxSlots})`;
         list.appendChild(backHeader);
-        
         if (currentEditingUnit.skills.back.length === 0) {
             const emptyMsg = document.createElement('p');
             emptyMsg.style.cssText = 'color: #888; text-align: center; font-size: 12px; margin: 5px 0;';
             emptyMsg.textContent = 'No backline skills selected';
             list.appendChild(emptyMsg);
-        } else {
-            currentEditingUnit.skills.back.forEach((skill, index) => {
-                list.appendChild(createSkillItem(skill, 'back', index));
-            });
-        }
+        } else currentEditingUnit.skills.back.forEach((skill, index) => { list.appendChild(createSkillItem(skill, 'back', index)) });
     } else {
         // Standard unit (non-midline)
         countDisplay.textContent = `Selected Skills (${currentEditingUnit.skills.length}/${maxSlots})`;
-        if (currentEditingUnit.skills.length === 0) {
-            list.innerHTML = '<p style="color: #888; text-align: center;">No skills selected (Not Recommended)</p>';
-            return;
-        }
-        currentEditingUnit.skills.forEach((skill, index) => {
-            list.appendChild(createSkillItem(skill, null, index));
-        });
+        if (currentEditingUnit.skills.length === 0) return list.innerHTML = '<p style="color: #888; text-align: center;">No skills selected (Not Recommended)</p>';
+        currentEditingUnit.skills.forEach((skill, index) => { list.appendChild(createSkillItem(skill, null, index)) });
     }
 }
 
@@ -325,10 +238,8 @@ function renderSelectedSkills() {
 function createSkillItem(skill, position, index) {
     const category = getSkillCategory(currentEditingUnit.template, skill);
     const color = categoryColors[category] || '#888';
-    
     const skillDiv = document.createElement('div');
     skillDiv.style.cssText = `padding: 8px; margin: 5px 0; background: #1a1a1a; border-left: 4px solid ${color}; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;`;
-    
     skillDiv.innerHTML = `
         <span>
             <strong>${skill.name}</strong> 
@@ -336,29 +247,22 @@ function createSkillItem(skill, position, index) {
         </span>
         <button style="background: #600; color: white; border: none; padding: 4px 10px; cursor: pointer; border-radius: 4px;">Remove</button>
     `;
-    
     skillDiv.querySelector('button').addEventListener('click', () => {
         // Remove from the correct array based on position
-        if (position) {
-            currentEditingUnit.skills[position].splice(index, 1);
-        } else {
-            currentEditingUnit.skills.splice(index, 1);
-        }
+        if (position) currentEditingUnit.skills[position].splice(index, 1);
+        else currentEditingUnit.skills.splice(index, 1);
         renderSkillRoster();
         renderSelectedSkills();
     });
-    
     return skillDiv;
 }
 
 function renderSelectedUnits() {
     const container = document.getElementById('selected-units');
     container.querySelectorAll('.unit-card').forEach(card => card.remove());
-    
     selectedUnits.forEach(unitConfig => {
         const card = document.createElement('div');
         card.className = 'unit-card selected';
-        
         let positionToggleHTML = '';
         if (unitConfig.template.base.position === 'mid') {
             positionToggleHTML = `
@@ -368,7 +272,6 @@ function renderSelectedUnits() {
                 </div>
             `;
         }
-
         // FIX: Handle midline units where skills is an object, not an array
         let skillCountHTML = '';
         if (unitConfig.template.base.position === 'mid') {
@@ -377,17 +280,13 @@ function renderSelectedUnits() {
                 <div style="font-size: 12px; color: #aaa; margin-top: 5px;">Front: ${unitConfig.skills.front.length} / ${maxSlots}</div>
                 <div style="font-size: 12px; color: #aaa;">Back: ${unitConfig.skills.back.length} / ${maxSlots}</div>
             `;
-        } else {
-            skillCountHTML = `<div style="font-size: 12px; color: #aaa; margin-top: 5px;">Skills: ${unitConfig.skills.length} / ${unitConfig.template.skillSlots || 5}</div>`;
-        }
-
+        } else skillCountHTML = `<div style="font-size: 12px; color: #aaa; margin-top: 5px;">Skills: ${unitConfig.skills.length} / ${unitConfig.template.skillSlots || 5}</div>`;
         card.innerHTML = `
             <strong>${unitConfig.template.name}</strong>
             ${skillCountHTML}
             ${positionToggleHTML}
         `;
         container.appendChild(card);
-        
         if (unitConfig.template.base.position === 'mid') {
             card.querySelectorAll('.pos-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
@@ -404,7 +303,6 @@ function renderSelectedUnits() {
                 });
             });
         }
-
         card.addEventListener('click', () => {
             updateInfoDisplay(unitConfig.template);
             openSkillSelection(unitConfig);
@@ -415,29 +313,13 @@ function renderSelectedUnits() {
 function startCombatWithSelected() {
     // 1. Serialize the squad data (Names + Skill Categories to handle duplicate names)
     const squadData = selectedUnits.map(config => {
-        const extractSkillInfo = (skill) => ({ 
-            name: skill.name, 
-            category: getSkillCategory(config.template, skill) 
-        });
-        
+        const extractSkillInfo = (skill) => ({ name: skill.name, category: getSkillCategory(config.template, skill) });
         // Handle midline front/back skills or standard skills
-        const skillsData = config.template.base.position === 'mid' 
-            ? { 
-                front: config.skills.front.map(extractSkillInfo), 
-                back: config.skills.back.map(extractSkillInfo) 
-              }
-            : config.skills.map(extractSkillInfo);
-            
-        return {
-            templateName: config.template.name,
-            startingPosition: config.startingPosition,
-            skills: skillsData
-        };
+        const skillsData = config.template.base.position === 'mid' ? { front: config.skills.front.map(extractSkillInfo), back: config.skills.back.map(extractSkillInfo) } : config.skills.map(extractSkillInfo);
+        return { templateName: config.template.name, startingPosition: config.startingPosition, skills: skillsData };
     });
-    
     // 2. Save to localStorage
     localStorage.setItem('pendingSquad', JSON.stringify(squadData));
-    
     // 3. Navigate to the combat page
     window.location.href = 'combat.html'; // Change to 'squadproto.html' if that's your file name
 }
@@ -445,31 +327,19 @@ function startCombatWithSelected() {
 function updateInfoDisplay(unit) {
     const infoDisplay = document.querySelector('.info-display');
     if (!infoDisplay || !unit) return;
-    
     let html = `<div class="left-column"> <h2>${unit.name}</h2> <p>${unit.description}</p> <h4>Stats (Current)</h4>`;
-    
     for (const statName of Object.keys(unit.base).filter(s => s !== "elements")) {
-        if (['hp', 'stamina', 'mana', 'energy'].includes(statName)) { 
-            html += `<div class="stat-line"><span><strong>${statName.charAt(0).toUpperCase() + statName.slice(1)}</strong></span><span>${Math.max(0, unit[statName])} / ${unit.base[statName]}</span></div>`  
-        } else if (unit[statName] !== undefined) { 
-            html += `<div class="stat-line"><span>${statName.charAt(0).toUpperCase() + statName.slice(1)}</span><span>${unit[statName]}</span></div>`  
-        } else if (unit.base[statName] !== undefined) { 
-            html += `<div class="stat-line"><span>${statName.charAt(0).toUpperCase() + statName.slice(1)}</span><span>${unit.base[statName]}</span></div>`  
-        }
+        if (['hp', 'stamina', 'mana', 'energy'].includes(statName)) html += `<div class="stat-line"><span><strong>${statName.charAt(0).toUpperCase() + statName.slice(1)}</strong></span><span>${Math.max(0, unit[statName])} / ${unit.base[statName]}</span></div>`  
+        else if (unit[statName] !== undefined) html += `<div class="stat-line"><span>${statName.charAt(0).toUpperCase() + statName.slice(1)}</span><span>${unit[statName]}</span></div>`  
+        else if (unit.base[statName] !== undefined) html += `<div class="stat-line"><span>${statName.charAt(0).toUpperCase() + statName.slice(1)}</span><span>${unit.base[statName]}</span></div>`
     }
     html += `</div>`;
-    
     html += `<div class="right-column"><h3>Skills</h3>`;
     for (const skillName in unit.skills) {
         if (Array.isArray(unit.skills[skillName])) {
             html += `<h4>${skillName} skills</h4>`;
-            for (const skill of unit.skills[skillName]) {
-                html += `<div class="skill-info-box"><div class="skill-name">${skill.name}</div><p><strong>Description:</strong><br>${skill.description ? skill.description.replace(/\n/g, '<br>') : 'No description available.'}</p></div><hr>`;
-            }
-        } else {
-            const skill = unit.skills[skillName];
-            html += `<h4>${skillName} skill</h4><div class="skill-info-box"><div class="skill-name">${skill.name}</div><p><strong>Description:</strong><br>${skill.description ? skill.description.replace(/\n/g, '<br>') : 'No description available.'}</p></div><hr>`;
-        }
+            for (const skill of unit.skills[skillName]) html += `<div class="skill-info-box"><div class="skill-name">${skill.name}</div><p><strong>Description:</strong><br>${skill.description ? skill.description.replace(/\n/g, '<br>') : 'No description available.'}</p></div><hr>`;
+        } else html += `<h4>${skillName} skill</h4><div class="skill-info-box"><div class="skill-name">${unit.skills[skillName].name}</div><p><strong>Description:</strong><br>${unit.skills[skillName].description ? unit.skills[skillName].description.replace(/\n/g, '<br>') : 'No description available.'}</p></div><hr>`;
     }
     infoDisplay.innerHTML = html + '</div>';
 }

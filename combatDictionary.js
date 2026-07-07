@@ -27,7 +27,7 @@ class Modifier {
         this.cancel = (cancel = true, temp = false) => {
             if (eventState.cancel.length && !temp) handleEvent('cancel', { modifier: this, cancel });
             cancel ? this.vars.cancel++ : this.vars.cancel--;
-            if (cancelFunc) (cancelFunc).apply(this, [cancel, temp]);
+            if (cancelFunc) (cancelFunc).call(this, cancel, temp);
             else {
                 const isActivating = !cancel && !this.vars.applied, isDeactivating = cancel && this.vars.applied;
                 if (isDeactivating || isActivating) {
@@ -140,7 +140,7 @@ new Modifier("Reapply Passive", "Reapplies passive modifiers on unit revive",
     function(context) { if (context.type === "revive") for (const mod of modifiers.filter(mod => mod.vars.caster === context.unit && mod.vars.passive)) mod.cancel(false) },
     function() {},
     function() {}
-) //move to combat.js when created
+)
 
 function logAction(message, type = 'info') {
     const logContainer = document.getElementById('action-log');
@@ -178,32 +178,20 @@ function regenerateResources(unit) {
     if (!unit.previousAction[0]) regen.stamina = unit.staminaRegen;
     if (unit.base.mana && !unit.previousAction[1]) regen.mana = unit.manaRegen;
     if (unit.base.energy && !unit.previousAction[2]) regen.energy = unit.energyRegen;
-    resourceChange(unit, regen)
+    resourceChange(unit, regen);
     unit.previousAction = [false, false, false];
 }
 
 function enemyTurn(unit) {
-    if (unit.skills.special && typeof unit.skills.special.code === 'function') {
-        if (unit.stamina >= (unit.skills.special.cost?.stamina || 0) && (unit.mana || 0) >= (unit.skills.special.cost?.mana || 0) && (unit.energy || 0) >= (unit.skills.special.cost?.energy || 0) && Math.random() < 0.2) {
-            executeEnemyAction(unit, unit.skills.special);
-            return;
-        }
-    }
+    if (unit.skills.special && unit.stamina >= (unit.skills.special.cost?.stamina || 0) && (unit.mana || 0) >= (unit.skills.special.cost?.mana || 0) && (unit.energy || 0) >= (unit.skills.special.cost?.energy || 0) && Math.random() < 0.2) return executeEnemyAction(unit, unit.skills.special);
+    if (Math.random < 1/16) return logAction(`${unit.name} is resting!`, 'info')
     const availableActions = [];
-    if (unit.skills.basic && typeof unit.skills.basic.code === 'function') {
-        if (unit.stamina >= (unit.skills.basic.cost?.stamina || 0) && (unit.mana || 0) >= (unit.skills.basic.cost?.mana || 0) && (unit.energy || 0) >= (unit.skills.basic.cost?.energy || 0)) availableActions.push(unit.skills.basic);
-    }
-    if (unit.skills.secondary && typeof unit.skills.secondary.code === 'function') {
-        if (unit.stamina >= (unit.skills.secondary.cost?.stamina || 0) && (unit.mana || 0) >= (unit.skills.secondary.cost?.mana || 0) && (unit.energy || 0) >= (unit.skills.secondary.cost?.energy || 0)) availableActions.push(unit.skills.secondary);
-    }
-    if (availableActions.length === 0) {
-        logAction(`${unit.name} has no available actions and skips!`, 'miss');
-        if (eventState.turnEnd.length) handleEvent('turnEnd', { unit });
-        setTimeout(window.combatTick, 1000);
-        return;
-    }
-    const action = availableActions[Math.floor(Math.random() * availableActions.length)];
-    executeEnemyAction(unit, action);
+    if (unit.skills.basic && unit.stamina >= (unit.skills.basic.cost?.stamina || 0) && (unit.mana || 0) >= (unit.skills.basic.cost?.mana || 0) && (unit.energy || 0) >= (unit.skills.basic.cost?.energy || 0)) availableActions.push(unit.skills.basic);
+    if (unit.skills.secondary && unit.stamina >= (unit.skills.secondary.cost?.stamina || 0) && (unit.mana || 0) >= (unit.skills.secondary.cost?.mana || 0) && (unit.energy || 0) >= (unit.skills.secondary.cost?.energy || 0)) availableActions.push(unit.skills.secondary);
+    if (availableActions.length) return executeEnemyAction(unit, availableActions[Math.floor(Math.random() * availableActions.length)]);
+    logAction(`${unit.name} has no available actions and skips!`, 'miss');
+    if (eventState.turnEnd.length) handleEvent('turnEnd', { unit });
+    setTimeout(window.combatTick, 1000);
 }
 
 function executeEnemyAction(unit, action) {
@@ -215,7 +203,7 @@ function executeEnemyAction(unit, action) {
         currentAction.push(action);
         action.target ? action.target.call(unit) : action.code.call(unit);
         currentAction.pop();
-    }
+    } else logAction(`${unit.name}'s action failed!`, 'miss');
     if (eventState.turnEnd.length) handleEvent('turnEnd', { unit });
     setTimeout(window.combatTick, 1000);
 }
@@ -243,11 +231,9 @@ function randTarget(unitList = allUnits, count = 1, trueRand = false) {
             }
         }
     }
-    
     let selectedTargets = [];
     const availableUnits = [...unitList];
     const availableWeights = [...weights];
-    
     for (let i = 0; i < count && availableUnits.length > 0; i++) {
         let selectedUnit;
         if (trueRand) {
@@ -255,8 +241,7 @@ function randTarget(unitList = allUnits, count = 1, trueRand = false) {
             selectedUnit = availableUnits.splice(idx, 1)[0];
             availableWeights.splice(idx, 1);
         } else {
-            const currentTotal = availableWeights.reduce((sum, w) => sum + w, 0);
-            const randChoice = Math.random() * currentTotal;
+            const randChoice = Math.random() * availableWeights.reduce((sum, w) => sum + w, 0);
             let cumulative = 0;
             for (let j = 0; j < availableUnits.length; j++) {
                 cumulative += availableWeights[j];
@@ -269,7 +254,6 @@ function randTarget(unitList = allUnits, count = 1, trueRand = false) {
         }
         if (selectedUnit) selectedTargets.push(selectedUnit);
     }
-    
     if (eventState.targets.length) handleEvent('targets', { selectedTargets, count, trueRand });
     return selectedTargets;
 }
@@ -348,7 +332,7 @@ function selectTarget(action, target, targetType = 'unit') {
             action.code.call(unit, selectedTargets);
             currentAction.pop();
             if (eventState.turnEnd.length) handleEvent('turnEnd', { unit });
-        } else logAction(`${unit.name}'s action was canceled!`);
+        } else logAction(`${unit.name}'s action was canceled!`, 'miss');
         document.getElementById("selection").innerHTML = "";
         document.getElementById('selection').style.display = 'none';
         cleanupGlobalHandlers();
@@ -360,9 +344,7 @@ function selectTarget(action, target, targetType = 'unit') {
         const selectionDiv = document.getElementById("selection");
         if (selectionDiv) selectionDiv.innerHTML = "";
         cleanupGlobalHandlers();
-        if (unit) {
-            unit.specialReady = true;
-        }
+        if (unit) unit.specialReady = true;
         document.getElementById('selection').style.display = 'none';
     }
     window.checkTargetSelection = checkTargetSelection;
