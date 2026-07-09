@@ -41,7 +41,8 @@ function initUnitSelection() {
                     id: crypto.randomUUID(),
                     template: unit,
                     skills: isMidline ? { front: getDefaultSkills(unit, 'front'), back: getDefaultSkills(unit, 'back') } : getDefaultSkills(unit),
-                    startingPosition: isMidline ? 'back' : unit.base.position 
+                    startingPosition: isMidline ? 'back' : unit.base.position,
+                    autoBehavior: unit.skills.basic ? 'basic' : unit.skills.secondary ? 'secondary' : 'none'
                 };
                 selectedUnits.push(unitConfig);
                 card.dataset.configId = unitConfig.id; // FIX: Assign ID immediately
@@ -281,12 +282,31 @@ function renderSelectedUnits() {
                 <div style="font-size: 12px; color: #aaa;">Back: ${unitConfig.skills.back.length} / ${maxSlots}</div>
             `;
         } else skillCountHTML = `<div style="font-size: 12px; color: #aaa; margin-top: 5px;">Skills: ${unitConfig.skills.length} / ${unitConfig.template.skillSlots || 5}</div>`;
+        const hasBasic = !!unitConfig.template.skills.basic;
+        const hasSecondary = !!unitConfig.template.skills.secondary;
+
+        let behaviorHTML = `<select class="behavior-select" data-id="${unitConfig.id}" style="margin-top: 5px; padding: 2px; background: #222; color: #fff; border: 1px solid #555; border-radius: 4px; font-size: 11px; width: 100%; cursor: pointer;">`;
+        if (hasBasic) behaviorHTML += `<option value="basic" ${unitConfig.autoBehavior === 'basic' ? 'selected' : ''}>Behavior: Basic</option>`;
+        if (hasSecondary) behaviorHTML += `<option value="secondary" ${unitConfig.autoBehavior === 'secondary' ? 'selected' : ''}>Behavior: Secondary</option>`;
+        if (hasBasic && hasSecondary) behaviorHTML += `<option value="both" ${unitConfig.autoBehavior === 'both' ? 'selected' : ''}>Behavior: Both</option>`;
+        behaviorHTML += `<option value="none" ${unitConfig.autoBehavior === 'none' ? 'selected' : ''}>Behavior: None</option>`;
+        behaviorHTML += `</select>`;
         card.innerHTML = `
             <strong>${unitConfig.template.name}</strong>
             ${skillCountHTML}
+            ${behaviorHTML}
             ${positionToggleHTML}
         `;
         container.appendChild(card);
+        const select = card.querySelector('.behavior-select');
+        if (select) {
+            select.addEventListener('change', (e) => {
+                e.stopPropagation();
+                const config = selectedUnits.find(u => u.id === select.dataset.id);
+                if (config) config.autoBehavior = e.target.value;
+            });
+            select.addEventListener('click', (e) => e.stopPropagation()); // Prevents opening skill menu when clicking dropdown
+        }
         if (unitConfig.template.base.position === 'mid') {
             card.querySelectorAll('.pos-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
@@ -316,7 +336,7 @@ function startCombatWithSelected() {
         const extractSkillInfo = (skill) => ({ name: skill.name, category: getSkillCategory(config.template, skill) });
         // Handle midline front/back skills or standard skills
         const skillsData = config.template.base.position === 'mid' ? { front: config.skills.front.map(extractSkillInfo), back: config.skills.back.map(extractSkillInfo) } : config.skills.map(extractSkillInfo);
-        return { templateName: config.template.name, startingPosition: config.startingPosition, skills: skillsData };
+        return { templateName: config.template.name, startingPosition: config.startingPosition, skills: skillsData, autoBehavior: config.autoBehavior };
     });
     // 2. Save to localStorage
     localStorage.setItem('pendingSquad', JSON.stringify(squadData));

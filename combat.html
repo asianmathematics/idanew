@@ -15,6 +15,28 @@
     <!-- Toast message container -->
     <div id="message-container" class="message-container"></div>
     
+    <div class="unit-inspector-column">
+        <div class="inspector-tabs">
+            <button class="tab-button active" data-tab="units">Units</button>
+            <button class="tab-button" data-tab="modifiers">Modifiers</button>
+        </div>
+        
+        <!-- Units Tab (default view) -->
+        <div class="tab-content active" id="tab-units">
+            <div id="inspector-unit-list">
+                <p style="color:#888; text-align:center; padding:20px;">Select a unit to inspect...</p>
+            </div>
+        </div>
+        
+        <!-- Modifiers Tab -->
+        <div class="tab-content" id="tab-modifiers">
+            <div id="modifiers-content">
+                <h3 style="border-bottom:2px solid #ff0055; padding-bottom:5px; margin-bottom:10px;">Active Modifiers</h3>
+                <p style="color:#888;">No active modifiers</p>
+            </div>
+        </div>
+    </div>
+
     <!-- Main game layout: Grid + Inspector -->
     <div class="game-layout">
         
@@ -42,34 +64,12 @@
         </div>
         
         <!-- RIGHT: Unit Inspector Column (Tabbed) -->
-        <div class="unit-inspector-column">
-            <div class="inspector-tabs">
-                <button class="tab-button active" data-tab="units">Units</button>
-                <button class="tab-button" data-tab="modifiers">Modifiers</button>
-            </div>
-            
-            <!-- Units Tab (default view) -->
-            <div class="tab-content active" id="tab-units">
-                <div id="inspector-unit-list">
-                    <p style="color:#888; text-align:center; padding:20px;">Select a unit to inspect...</p>
-                </div>
-            </div>
-            
-            <!-- Modifiers Tab -->
-            <div class="tab-content" id="tab-modifiers">
-                <div id="modifiers-content">
-                    <h3 style="border-bottom:2px solid #ff0055; padding-bottom:5px; margin-bottom:10px;">Active Modifiers</h3>
-                    <p style="color:#888;">No active modifiers</p>
-                </div>
-            </div>
+         <div id="action-log-container">
+            <h3 style="margin-bottom:5px;">COMBAT LOG</h3>
+            <div id="action-log"></div>
         </div>
     </div>
     
-    <!-- Combat Log -->
-    <div id="action-log-container">
-        <h3 style="margin-bottom:5px;">COMBAT LOG</h3>
-        <div id="action-log"></div>
-    </div>
     
     <!-- Target Selection Overlay (for manual Special skill targeting) -->
     <div id="selection" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:500; min-width:400px; max-width:600px;"></div>
@@ -120,7 +120,15 @@
             <button id="confirm-skills" style="padding:10px 20px; background:#1a1a1a; color:#00ff88; border:1px solid #00ff88; cursor:pointer; font-family:'Courier Prime',monospace;">Done</button>
         </div>
     </div>
-    
+    <div id="speed-controls" style="position: fixed; bottom: 20px; right: 20px; background: rgba(20, 20, 20, 0.95); padding: 8px 12px; border-radius: 8px; z-index: 1000; display: flex; gap: 8px; align-items: center; border: 1px solid #444; box-shadow: 0 4px 6px rgba(0,0,0,0.5);">
+        <span style="color: #ccc; font-size: 12px; font-weight: bold;">SPEED:</span>
+        <button class="speed-btn" data-speed="0.25" style="padding: 4px 8px; background: #333; color: #fff; border: 1px solid #555; border-radius: 4px; cursor: pointer; font-size: 11px;">0.25x</button>
+        <button class="speed-btn" data-speed="0.5" style="padding: 4px 8px; background: #333; color: #fff; border: 1px solid #555; border-radius: 4px; cursor: pointer; font-size: 11px;">0.5x</button>
+        <button class="speed-btn active" data-speed="1" style="padding: 4px 8px; background: #060; color: #fff; border: 1px solid #0a0; border-radius: 4px; cursor: pointer; font-size: 11px;">1x</button>
+        <button class="speed-btn" data-speed="2" style="padding: 4px 8px; background: #333; color: #fff; border: 1px solid #555; border-radius: 4px; cursor: pointer; font-size: 11px;">2x</button>
+        <button class="speed-btn" data-speed="4" style="padding: 4px 8px; background: #333; color: #fff; border: 1px solid #555; border-radius: 4px; cursor: pointer; font-size: 11px;">4x</button>
+        <button class="speed-btn" data-speed="8" style="padding: 4px 8px; background: #333; color: #fff; border: 1px solid #555; border-radius: 4px; cursor: pointer; font-size: 11px;">8x</button>
+    </div>
     <script type="module" src="combat.js"></script>
 </body>
 </html>

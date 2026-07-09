@@ -16,11 +16,27 @@ Silhouette.skills = {
             code(target) { attack(this, target, 4, { attacker: { damage: { bonus: 18 }, accuracy: { bonus: 50 } } }) }
         },
         {
+            name: "Ball of Darkness",
+            properties: ["physical", "stamina", "mystic", "mana", "attack", "multi-target"],
+            cost: { stamina: -10, mana: -20, position: "back" },
+            description: "Cost 10 stamina & 20 mana, backline only\nMakes an attack at a single target with double accuracy. On hit, randomly targets another enemy with the attack and continues until miss.",
+            target() { this.team === "player" ? selectTarget(this.skills.special, [1, true, unitFilter("enemy", "front", false)]) : this.skills.special.code.call(this, randTarget(unitFilter("player", "front", false))) },
+            code(target) {
+                let hit = attack(this, target, 1, { attacker: { accuracy: { mult: 2 } } }), t = target;
+                while (hit[0] > 0) {
+                    let list = unitFilter(this.team === "player" ? "enemy" : "player", "", false).filter(u => u !== t[0]);
+                    if (!list.length) break;
+                    hit = attack(this, t = randTarget(list, 1, true), 1, { attacker: { accuracy: { mult: 2 } } });
+                }
+            }
+        },
+        {
             name: "Fear of the Dark",
             properties: ["physical", "stamina", "mystic", "mana", "buff", "debuff", "positional"],
             cost: { stamina: -15, mana: -25 },
             description: "Cost 15 stamina & 25 mana\nIncreases evasion/focus/presence, gives advantage to attacks at frontline, decreases enemy accuracy or focus of attacks/debuff to self at the backline, lasts 4 turns, 1% chance to fail to give advantage or decrease stats",
             code() {
+                logAction(`${this.name} is engulfing the field in shadow!`, "buff")
                 basicModifier("Fear of the Dark buff", "Increases evasion/focus/presence", { caster: this, target: this, duration: 5, properties: ["physical", "mystic", "buff"], stats: { evasion: 40, focus: 20, presence: 40 }, listeners: { turnEnd: true }, focus: true });
                 new Modifier("Fear of the Dark", "Gives advantage to attacks at frontline, decreases enemy accuracy or focus of attacks/debuff to self at the backline, 1% chance to fail",
                     { caster: this, target: this, duration: 5, properties: ["physical", "mystic", "buff", "debuff", "positional"], listeners: { turnEnd: true, attackStart: true, resistStart: true }, cancelListeners: ['attackStart', 'resistStart'], focus: true, debuffing: 0 },
@@ -42,10 +58,12 @@ Silhouette.skills = {
             target() { this.team === "player" ? selectTarget(this.skills.special, [1, true, unitFilter("player", this.position)]) : this.skills.special.code.call(this, randTarget(unitFilter("enemy", this.position))) },
             code(target) {
                 if (!target) return showMessage("No shadow clones can be summoned!", "error", "selection");
-                if (allUnits.find(obj => obj.custom?.summoner === this && obj.name === target.name + " (Shadow)")) return showMessage("A shadow clone of this unit is already summoned!", "error", "selection");
-                const clone = createUnit({ ...target, name: target.name + " (Shadow)" }, this.team);
-                clone.custom = { ...target.custom, summoner: this };
-                for (const stat in clone.base.filter(s => s !== "position" && s !== "elements" )) clone.base[stat] = Math.ceil(clone.base[stat] * 4 / 9);
+                if (allUnits.find(obj => obj.custom?.summoner === this && obj.name === target[0].name + " (Shadow)")) return showMessage("A shadow clone of this unit is already summoned!", "error", "selection");
+                logAction(`${this.name} creates a shadow clone of ${target[0].name}!`, "buff");
+                const clone = createUnit({ ...target[0], name: target[0].name + " (Shadow)" }, this.team);
+                clone.skills = target.skills;
+                clone.custom = { ...clone.custom, summoner: this };
+                Object.keys(clone.base).filter(stat => stat !== "position" && stat !== "elements").forEach(stat => { clone.base[stat] = Math.ceil(clone.base[stat] * 4 / 9) });
                 clone.base.hp = Math.ceil(clone.base.hp/10);
                 resetStat(clone, Object.keys(clone.base).filter(s => s !== "position" && s !== "elements" ));
                 if (eventState.unitChange.length) handleEvent('unitChange', { type: 'summon', unit: clone })
@@ -73,7 +91,7 @@ Silhouette.skills = {
             cost: { mana: -40 },
             description: "Cost 40 mana\nShadow summons gain a star up equivalent stat increase, except for hp and resources, also gains the Fear of the Dark buff if active, lasts 4 turns",
             code() {
-                logAction(`${this.name} supports the shadows!`, "buff");
+                logAction(`${this.name} empowers the shadows!`, "buff");
                 new Modifier("Friends with the Shadows", "Shadow summons gain a star up equivalent stat increase, except for hp and resources, also gains the Fear of the Dark buff if active",
                     { caster: this, targets: allUnits.filter(u => u.custom?.summoner === this), duration: 4, properties: ["mystic", "buff"], listeners: { turnStart: true, unitChange: true, modifierStart: true, modifierEnd: true }, cancelListeners: ['unitChange', 'modifierStart', 'modifierEnd'], focus: true},
                     function() {
@@ -139,12 +157,13 @@ Silhouette.skills = {
         },
         {
             name: "Amulet of Darkness",
-            properties: ["physical", "stamina", "mana"],
-            cost: { stamina: -40, position: 'back' },
-            description: `Cost 40 stamina, backline only\nHeals a lot (~20% max HP) and regen some mana (~20% max mana)`,
+            properties: ["physical", "stamina", "mana", "positional", "heal"],
+            cost: { stamina: -20 },
+            description: `Cost 20 stamina\nRegen a lot of mana (~40% max mana). If in backline, spends 20 stamina to moderately heal (~10% max hp)`,
             code() {
-                heal(this, [this], [2]);
-                resourceChange(this, { mana: 2 * this.manaRegen });
+                resourceChange(this, { mana: 4 * this.manaRegen });
+                if (this.position === 'back' && resourceChange(this, { stamina: -20 })) heal(this, [this], [1]);
+                else logAction(`${this.name}'s amulet radiates with power!`, "buff");
             }
         },
         {
@@ -153,7 +172,8 @@ Silhouette.skills = {
             cost: { stamina: -15, mana: -25 },
             description: `Cost 15 stamina and 25 mana\nRevives for the next 6 turns, second and later revives unsummon a shadow and fails if no shadows can be unsummoned`,
             code() {
-                new Modifier("But It Refused", `Revives once per turn`,
+                logAction(`${this.name} hangs around the borders of life and death!`, "buff")
+                new Modifier("Accursed Linage", `Spend shadow summon to revive, first revive is free`,
                     { caster: this, target: this, duration: 5, properties: ["physical", "mystic", "revive"], listeners: { turnStart: true, unitChange: true }, cancelListeners: ['unitChange'], uses: 1 },
                     function() {},
                     function(context) {
@@ -196,6 +216,13 @@ Silhouette.skills = {
             code() { attack(this, randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false)), 2, { attacker: { damage: { bonus: 18 }, accuracy: { bonus: 50 } } }) }
         },
         {
+            name: "Ball of Darkness",
+            properties: ["physical", "mystic", "attack", "multi-target"],
+            cost: { position: "back" },
+            description: "Backline only\Makes an attack at a random target with increased accuracy. On hit, randomly targets another enemy with the attack and continues until miss or all units are hit.",
+            code() { for (const target of unitFilter(this.team === "player" ? "enemy" : "player", "front", false).map(val => ({ val, rand: Math.random() })).sort((a, b) => a.rand - b.rand).map(({ val }) => val)) if (!(attack(this, [target], 1, { attacker: { accuracy: { bonus: 50 } } }) > 0)) break; }
+        },
+        {
             name: "Summon Shadow",
             properties: ["mystic", "mana", "summon", "positional"],
             cost: { mana: -20 },
@@ -227,12 +254,13 @@ Silhouette.skills = {
         },
         {
             name: "Amulet of Darkness",
-            properties: ["physical", "stamina", "mana"],
-            cost: { stamina: -10, position: 'back' },
-            description: `Cost 10 stamina, backline only\nHeals moderately (~10% max HP) and regen some mana (~10% max mana)`,
+            properties: ["physical", "stamina", "mana", "positional", "heal"],
+            cost: { stamina: -10 },
+            description: `Cost 10 stamina\nRegen a lot of mana (~30% max mana). If in backline, spends 10 stamina to heal slightly (~5% max hp)`,
             code() {
-                heal(this, [this], [1]);
-                resourceChange(this, { mana: this.manaRegen });
+                resourceChange(this, { mana: 3 * this.manaRegen });
+                if (this.position === 'back' && resourceChange(this, { stamina: -10 })) heal(this, [this], [0.5]);
+                else logAction(`${this.name}'s amulet is covered in shadow`, "buff");
             }
         },
         {
@@ -254,10 +282,18 @@ Silhouette.skills = {
             code() { attack(this, randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false)), 1, { attacker: { damage: { bonus: 18 }, accuracy: { bonus: 50 } } }) }
         },
         {
+            name: "Ball of Darkness",
+            properties: ["attack", "multi-target"],
+            cost: { position: "Back" },
+            description: "Backline only\nAttacks a single target with double accuracy, attacks again on hit.",
+            code() { if (attack(this, randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false)), 1, { attacker: { accuracy: { mult: 2 } } })) attack(this, randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false)), 1, { attacker: { accuracy: { mult: 2 } } }) }
+        },
+        {
             name: "Fear of the Dark",
             properties: ["buff", "debuff", "positional"],
             description: "Increases evasion/focus/presence, chance to gives advantage to attacks at frontline, chance to decreases enemy accuracy or focus of attacks/debuff to self at the backline, until end of next turn",
             code() {
+                logAction(`${this.name} is covered in shadow.`, "buff")
                 const mod = modifiers.filter(m => m.name === "Fear of the Dark" && m.vars.caster === this);
                 mod.length ? mod.forEach(m => m.vars.duration++) :
                 basicModifier("Fear of the Dark buff", "Increases evasion/focus/presence", { caster: this, target: this, duration: 2, properties: ["physical", "mystic", "buff"], stats: { evasion: 20, focus: 10, presence: 20 }, listeners: { turnEnd: true }, focus: true }),
@@ -275,12 +311,12 @@ Silhouette.skills = {
         },
         {
             name: "Amulet of Darkness",
-            properties: ["physical", "stamina", "mana"],
-            cost: { position: 'back' },
-            description: `Backline only\nHeals a bit (~5% max HP) and regen some mana (~5% max mana)`,
+            properties: ["mana", "positional", "heal"],
+            description: `Regen a lot of mana (~20% max mana). If in backline, disable stamina regen to heal slightly (~2.5% max hp)`,
             code() {
-                heal(this, [this], [.5]);
-                resourceChange(this, { mana: this.manaRegen / 2 });
+                resourceChange(this, { mana: 2 * this.manaRegen });
+                if (this.position === 'back' && resourceChange(this, { stamina: -20 })) this.previousAction[0] = true, heal(this, [this], [.25]);
+                else logAction(`${this.name}'s amulet flickers`, "buff");
             }
         },
         {
@@ -367,12 +403,49 @@ Silhouette.skills = {
             }
         },
         {
+            name: "Amulet of Darkness",
+            properties: ["physical", "stamina", "mana", "positional", "heal"],
+            description: "Reduces max stamina by 20 and stamina regen by 2\nRegen mana (~10 max mana) each turn. If at backline, double reduction to also heal (~5% hp) each turn",
+            code() {
+                new Modifier("Amulet of Darkness", `Regen mana (~10 max mana)${this.position === 'back' ? ' and heal (~5% hp)' : ''} each turn`,
+                    { caster: this, target: this, properties: this.position === "back" ? ["physical", "stamina", "mana", "heal"] : ["physical", "stamina", "mana"], listeners: { unitChange: true, turnStart: true }, cancelListeners: ['turnStart'], focus: true, passive: true },
+                    function() {
+                        if (this.vars.caster.position === 'back') {
+                            this.vars.caster.stamina = Math.max(this.vars.caster.base.stamina -= 40, 0);
+                            this.vars.caster.base.staminaRegen -= 4;
+                        } else {
+                            this.vars.caster.stamina = Math.max(this.vars.caster.base.stamina -= 20, 0);
+                            this.vars.caster.base.staminaRegen -= 2;
+                        }
+                        resetStat(this.vars.caster, ['staminaRegen']);
+                        return this.vars.passive--;
+                    },
+                    function(context) {
+                        if (context.unit !== this.vars.caster) return;
+                        if (context.event === 'positionChange') {
+                            if (this.vars.caster.position === 'back') {
+                                this.vars.caster.stamina = (this.vars.caster.base.stamina += 40);
+                                this.vars.caster.base.staminaRegen -= 4;
+                            } else {
+                                this.vars.caster.stamina = (this.vars.caster.base.stamina += 20);
+                                this.vars.caster.base.staminaRegen -= 2;
+                            }
+                            resetStat(this.vars.caster, ['staminaRegen']);
+                        } else if (this.vars.applied){
+                            resourceChange(this.vars.target, { mana: this.vars.target.manaRegen });
+                            if (this.vars.caster.position === 'back') heal(this.vars.caster, [this.vars.target], [0.5]);
+                        }
+                    }
+                )
+            }
+        },
+        {
             name: "Accursed Linage",
             properties: ["physical", "stamina", "mystic", "mana", "revive"],
             description: `Reduces max stamina by 10 and max mana by 20\nRevives at the cost of unsummmoning a shadow, fails if no shadow to unsummon`,
             code() {
-                new Modifier("But It Refused", `Revives once per turn`,
-                    { caster: this, target: this, duration: 5, properties: ["physical", "mystic", "revive"], listeners: { unitChange: true, positionChange: true }, cancelListeners: ['unitChange'], passive: true },
+                new Modifier("Accursed Linage", `Spend shadow summon to revive`,
+                    { caster: this, target: this, properties: ["physical", "mystic", "revive"], listeners: { unitChange: true, positionChange: true }, cancelListeners: ['unitChange'], passive: true },
                     function() {
                         this.vars.caster.stamina = Math.max(this.vars.caster.base.stamina -= 10, 0);
                         this.vars.caster.mana = Math.max(this.vars.caster.base.mana -= 20, 0);
@@ -382,6 +455,7 @@ Silhouette.skills = {
                         if (context.event === 'positionChange') {
                             this.vars.caster.stamina = (this.vars.caster.base.stamina += 10);
                             this.vars.caster.mana = (this.vars.caster.base.mana += 20);
+                            return this.vars.passive--;
                         }
                         if (this.vars.applied && context.type === "downed") {
                             const mod = modifiers.find(m => m.name === "Summon Shadow" && m.vars.caster === this.vars.caster);
@@ -473,7 +547,44 @@ Silhouette.skills = {
                     }
                 )
             }
-        }
+        },
+        {
+            name: "Amulet of Darkness",
+            properties: ["physical", "stamina", "mana", "positional", "heal"],
+            description: "Reduces max stamina by 20 and stamina regen by 2\nRegen mana (~15 max mana) each turn. If at backline, double reduction to also heal (~7.5% hp) each turn",
+            code() {
+                new Modifier("Amulet of Darkness", `Regen mana (~10 max mana)${this.position === 'back' ? ' and heal (~5% hp)' : ''} each turn`,
+                    { caster: this, target: this, properties: this.position === "back" ? ["physical", "stamina", "mana", "heal"] : ["physical", "stamina", "mana"], listeners: { unitChange: true, turnStart: true }, cancelListeners: ['turnStart'], focus: true, passive: true },
+                    function() {
+                        if (this.vars.caster.position === 'back') {
+                            this.vars.caster.stamina = Math.max(this.vars.caster.base.stamina -= 40, 0);
+                            this.vars.caster.base.staminaRegen -= 4;
+                        } else {
+                            this.vars.caster.stamina = Math.max(this.vars.caster.base.stamina -= 20, 0);
+                            this.vars.caster.base.staminaRegen -= 2;
+                        }
+                        resetStat(this.vars.caster, ['staminaRegen']);
+                        return this.vars.passive--;
+                    },
+                    function(context) {
+                        if (context.unit !== this.vars.caster) return;
+                        if (context.event === 'positionChange') {
+                            if (this.vars.caster.position === 'back') {
+                                this.vars.caster.stamina = (this.vars.caster.base.stamina += 40);
+                                this.vars.caster.base.staminaRegen -= 4;
+                            } else {
+                                this.vars.caster.stamina = (this.vars.caster.base.stamina += 20);
+                                this.vars.caster.base.staminaRegen -= 2;
+                            }
+                            resetStat(this.vars.caster, ['staminaRegen']);
+                        } else if (this.vars.applied){
+                            resourceChange(this.vars.target, { mana: this.vars.target.manaRegen * 1.5 });
+                            if (this.vars.caster.position === 'back') heal(this.vars.caster, [this.vars.target], [0.75]);
+                        }
+                    }
+                )
+            }
+        },
     ]
 }
 
@@ -496,7 +607,6 @@ Silhouette.backDefaultSkills = [
 Silhouette.switchPosition = function() {
     if (this.position === "back") {
         this.position = "front";
-        logAction(`${this.name} shifts to the frontline.`, "info");
         this.base.accuracy = 140;
         this.base.evasion = 95;
         this.base.focus = 170;
@@ -505,7 +615,6 @@ Silhouette.switchPosition = function() {
         this.skills = {...this.frontSkills}
     } else {
         this.position = "back";
-        logAction(`${this.name} shifts to the backline.`, "info");
         this.base.accuracy = 110;
         this.base.evasion = 160;
         this.base.focus = 135;
@@ -513,6 +622,7 @@ Silhouette.switchPosition = function() {
         this.base.speed = 75;
         this.skills = {...this.backSkills}
     }
+    logAction(`${this.name} shifts to the ${this.position}line.`, "info");
     resetStat(this, ["attack", "evasion", "resist", "speed", "presence"]);
     if (eventState.positionChange.length) handleEvent('positionChange', { unit: this, position: this.position });
     this.skills.passive?.code?.call(this);
@@ -526,10 +636,12 @@ const shadowSkills = {
         description: "If a target with a Strength Drain debuff is downed, create a new shadow",
         code() {
             if (modifiers.filter(m => m.name === "Strength Drain debuff").map(m => m.vars.target).some(t => t.hp <= 0)) {
+                logAction(`${this.name} proliferates!`, "action")
                 const clone = createUnit(this, this.team);
+                clone.skills = this.skills;
                 clone.custom = { ...clone.custom, summoner: this};
                 if (eventState.unitChange.length) handleEvent('unitChange', { type: 'summon', unit: clone});
-            }
+            } else { logAction(`${this.name} fails to proliferate!`, "miss") }
         }
     },
     basic: {

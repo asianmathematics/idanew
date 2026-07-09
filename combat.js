@@ -22,6 +22,24 @@ let currentTurn = 0;
 let wave = 1;
 const availableUnits = [DexSoldier, FourArcher, Mannequin, Silhouette];
 let selectedUnits = [];
+window.combatSpeedMultiplier = 1;
+const getDelay = (ms) => ms / window.combatSpeedMultiplier;
+
+function initSpeedControls() {
+    document.querySelectorAll('.speed-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.speed-btn').forEach(b => {
+                b.classList.remove('active');
+                b.style.background = '#333';
+                b.style.borderColor = '#555';
+            });
+            btn.classList.add('active');
+            btn.style.background = '#060';
+            btn.style.borderColor = '#0a0';
+            window.combatSpeedMultiplier = parseFloat(btn.dataset.speed);
+        });
+    });
+}
 
 // Import squad selection functions
 import { startCombat as startSquadSelect } from './squadselect.js';
@@ -97,7 +115,6 @@ function renderUnitCard(unit, isEnemy = false, inFrontline = false) {
     card.innerHTML = `
         ${indicators}
         <div class="unit-name">${unit.name}</div>
-        <div class="position-indicator">${unit.position === 'back' ? 'Backline' : inFrontline ? 'Frontline' : ''}</div>
         ${renderUnitStats(unit, isEnemy)}
     `;
     
@@ -255,7 +272,7 @@ function renderUnitDetails(unit) {
     
     // Skills List
     html += `<div style="margin-top:10px; font-size:11px; color:#888;">EQUIPPED SKILLS:</div>`;
-    if (unit.learnedSkills && unit.learnedSkills.length > 0) { unit.learnedSkills.forEach(skill => { html += `<div style="font-size:11px; color:#00aaff; margin:3px 0;">• ${skill.name}</div>` }) }
+    if (unit.skills) { Object.values(unit.skills).forEach(skill => { html += `<div style="font-size:11px; color:#00aaff; margin:3px 0;">• ${skill.name}</div>` }) }
     else html += `<div style="font-size:11px; color:#666;">No skills equipped</div>`;
     return html;
 }
@@ -375,13 +392,7 @@ export async function combatTick() {
             updateBattleDisplay();
         }
     }
-    
-    logAction(`<strong>Turn ${turnCounter++}: ${turn.name}'s turn${isSpecialInterrupt ? ' (Special Interrupt!)' : ''}</strong>`, 'turn');
-    
-    if (eventState.turnStart.length && !isSpecialInterrupt) {
-        handleEvent('turnStart', { unit: turn });
-    }
-    
+    if (eventState.turnStart.length && !isSpecialInterrupt) handleEvent('turnStart', { unit: turn });
     if (!turn.stun) {
         setUnit(turn);
         regenerateResources(turn);
@@ -397,10 +408,10 @@ export async function combatTick() {
                     // Fallback if no special skill is equipped
                     logAction("Can't find special action!", "error");
                     if (eventState.turnEnd.length) handleEvent('turnEnd', { unit: turn });
-                    setTimeout(combatTick, 500);
+                    setTimeout(combatTick, getDelay(500));
                 }
             } else {
-                // NORMAL AUTO-BATTLE LOGIC
+                logAction(`<strong>Turn ${turnCounter++}: ${turn.name}'s turn</strong>`, 'turn');
                 const behavior = turn.autoBehavior || (turn.skills.basic ? 'basic' : turn.skills.secondary ? 'secondary' : 'none');
                 if (behavior === 'none') {
                     if (eventState.actionStart.length) handleEvent('actionStart', {unit, action: 'skip'});
@@ -409,7 +420,7 @@ export async function combatTick() {
                     // FIX: Advance the turn even if resting
                     if (eventState.turnEnd.length) handleEvent('turnEnd', { unit: turn });
                     turn.timer += 1000;
-                    setTimeout(combatTick, 500);
+                    setTimeout(combatTick, getDelay(500));
                 } else if (behavior === 'both') {
                     executeBoth(turn);
                 } else {
@@ -419,6 +430,7 @@ export async function combatTick() {
         }
         
         if (turn.team === 'enemy') {
+            logAction(`<strong>Turn ${turnCounter++}: ${turn.name}'s turn</strong>`, 'turn');
             enemyTurn(turn);
         }
     } else {
@@ -427,7 +439,7 @@ export async function combatTick() {
             handleEvent('turnEnd', { unit: turn });
         }
         turn.timer += 1000;
-        setTimeout(combatTick, 500);
+        setTimeout(combatTick, getDelay(500));
     }
 }
 
@@ -443,7 +455,7 @@ function executeAutoAction(unit, action) {
     }
     unit.specialReady = true;
     if (eventState.turnEnd.length) handleEvent('turnEnd', { unit });
-    setTimeout(combatTick, 500);
+    setTimeout(combatTick, getDelay(500));
 }
 
 function executeBoth(unit) {
@@ -478,7 +490,7 @@ function executeBoth(unit) {
         currentAction.pop();
     }
     if (eventState.turnEnd.length) handleEvent('turnEnd', { unit });
-    setTimeout(combatTick, 500);
+    setTimeout(combatTick, getDelay(500));
 }
 
 function executeSpecialAction(unit, specialSkill) {
@@ -493,7 +505,7 @@ function executeSpecialAction(unit, specialSkill) {
         currentAction.pop();
         if (eventState.turnEnd.length) handleEvent('turnEnd', { unit });
     }
-    setTimeout(combatTick, 3000);
+    setTimeout(combatTick, getDelay(2000));
 }
 
 // ============================================
@@ -676,6 +688,7 @@ window.updateModifiers = updateModifiers;
 document.addEventListener('DOMContentLoaded', () => {
     initTabSwitching();
     initInspectorControls();
+    initSpeedControls();
 });
 // --- PAGE TRANSITION HANDLER ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -725,7 +738,7 @@ function initializeCombatFromSquad(squadData) {
         newUnit.skills.passive?.code?.call?.(newUnit);
         newUnit.skills.augment?.code?.call?.(newUnit);
         // Auto-battler properties
-        newUnit.autoBehavior = newUnit.skills.basic ? 'basic' : newUnit.skills.secondary ? 'secondary' : 'none';
+        newUnit.autoBehavior = (newUnit.skills[unitConfig.autoBehavior] && unitConfig.autoBehavior) || (newUnit.skills.basic ? 'basic' : newUnit.skills.secondary ? 'secondary' : 'none');
         newUnit.specialReady = true;
     });
     // Spawn Enemies

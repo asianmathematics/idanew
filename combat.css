@@ -42,8 +42,7 @@ h1, h2, h3, h4 {
    MAIN GAME LAYOUT
    ============================================ */
 .game-layout {
-    display: flex;
-    flex-direction: row;
+    display: grid;
     gap: 15px;
     margin-top: 20px;
 }
@@ -52,7 +51,7 @@ h1, h2, h3, h4 {
    BATTLEFIELD CONTAINER (The Grid)
    ============================================ */
 .battle-container {
-    flex: 2;
+    min-width: 0;
     background-color: #0a0a0a;
     box-shadow: 0 0 15px rgba(0,170,255,0.2);
     padding: 20px;
@@ -160,7 +159,7 @@ h1, h2, h3, h4 {
     color: #e0e0e0;
     box-shadow: inset 0 0 12px rgba(0,255,136,0.1);
     position: relative;
-    width: 210px;
+    width: 150px;
     transition: all 0.2s ease;
 }
 
@@ -270,7 +269,7 @@ h1, h2, h3, h4 {
 
 .stat-bar-container {
     width: 100%;
-    height: 7px;
+    height: 4px;
     background-color: #252525;
     border-radius: 0;
     overflow: hidden;
@@ -291,14 +290,14 @@ h1, h2, h3, h4 {
    UNIT INSPECTOR COLUMN (Tabbed)
    ============================================ */
 .unit-inspector-column {
-    flex: 1;
-    max-width: 380px;
+    width: 100%;
+    max-width: 100%;
     display: flex;
     flex-direction: column;
     background-color: #0a0a0a;
     border: 1px solid #00ff88;
     box-shadow: 0 0 15px rgba(0,255,136,0.2);
-    min-height: 600px;
+    margin-bottom: 15px;
 }
 
 .inspector-tabs {
@@ -343,8 +342,19 @@ h1, h2, h3, h4 {
 }
 .tab-content.active { display: block; }
 
+#inspector-unit-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    width: 100%;
+    align-content: flex-start;
+}
+
 /* Unit list inside inspector */
 .inspector-unit-card {
+    width: 280px;
+    flex: 0 0 280px;
+    margin-bottom: 10px;
     background: linear-gradient(15deg, #0a0a0a, #1a1a1a);
     border: 1px solid #00aaff;
     padding: 10px;
@@ -451,6 +461,8 @@ h1, h2, h3, h4 {
     list-style: none;
     padding: 0;
     margin: 0;
+    max-height: 300px;
+    overflow-y: auto;
 }
 .modifier-list li {
     margin-bottom: 5px;
@@ -542,20 +554,31 @@ h1, h2, h3, h4 {
    COMBAT LOG
    ============================================ */
 #action-log-container {
-    width: 100%;
-    margin-top: 15px;
+    min-height: 0;
+    max-height: 1000px;
+    max-width: 25%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background-color: #0a0a0a;
+    border: 1px solid #00ff88;
+    box-shadow: 0 0 15px rgba(0,255,136,0.2);
+    padding: 15px;
 }
 #action-log {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
     background-color: #000;
     color: #00ff88;
     font-family: 'Courier Prime', monospace;
     border: 1px solid #00ff88;
     padding: 10px;
-    height: 160px;
-    overflow-y: auto;
     font-size: 14px;
     line-height: 1.4;
     width: 100%;
+    height: auto;
 }
 .log-entry {
     margin-bottom: 4px;
@@ -764,11 +787,20 @@ button#back {
    RESPONSIVE
    ============================================ */
 @media (max-width: 1000px) {
-    .game-layout { flex-direction: column; }
-    .unit-inspector-column { max-width: 100%; order: 2; }
+    .game-layout { display: flex; flex-direction: column; }
+     .unit-inspector-column { 
+        max-width: 100%; 
+        order: 2;
+    }
+    #action-log-container { 
+        min-height: auto; 
+        max-height: 300px; 
+        overflow-y: auto;
+        max-width: 100%;
+    }
     .battle-container { order: 1; }
     .info-display { flex-direction: column; }
-    #action-log { height: 150px; }
+    #action-log { min-height: 150px; }
     
     .frontline-mixed::before { display: none; }
     .grid-zone .unit-row { justify-content: center; }

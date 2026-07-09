@@ -13,7 +13,7 @@ events.forEach(type => eventState[type] = []);
 
 function setUnit(unit) { currentUnit = unit }
 
-function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)) }
+function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms / (window.combatSpeedMultiplier || 1))); }
 
 function unitFilter(team, position, downed = null) { return allUnits.filter(unit => (team === '' || unit.team === team) && (position === "mid" ? unit.base.position === "mid" : position === '' || unit.position === position) && (downed === null ? true : (downed ? unit.hp <= 0 : unit.hp > 0))) }
 
@@ -113,12 +113,12 @@ function removeModifier(modifier) {
         }
         return;
     }
-    if (eventState.modifierEnd.length) handleEvent('modifierEnd', { modifier });
     if (modifier.vars?.applied) {
         currentAction.push(modifier);
         modifier.cancel();
         currentAction.pop();
     }
+    if (eventState.modifierEnd.length) handleEvent('modifierEnd', { modifier });
     if (modifier.vars?.listeners) for (const event in modifier.vars.listeners) if (modifier.vars.listeners[event] && eventState[event].indexOf(modifier) > -1) eventState[event].splice(eventState[event].indexOf(modifier), 1);
     const index = modifiers.indexOf(modifier);
     if (index !== -1) modifiers.splice(index, 1);
@@ -191,7 +191,7 @@ function enemyTurn(unit) {
     if (availableActions.length) return executeEnemyAction(unit, availableActions[Math.floor(Math.random() * availableActions.length)]);
     logAction(`${unit.name} has no available actions and skips!`, 'miss');
     if (eventState.turnEnd.length) handleEvent('turnEnd', { unit });
-    setTimeout(window.combatTick, 1000);
+    setTimeout(window.combatTick, 1000 / (window.combatSpeedMultiplier || 1));
 }
 
 function executeEnemyAction(unit, action) {
@@ -205,7 +205,7 @@ function executeEnemyAction(unit, action) {
         currentAction.pop();
     } else logAction(`${unit.name}'s action failed!`, 'miss');
     if (eventState.turnEnd.length) handleEvent('turnEnd', { unit });
-    setTimeout(window.combatTick, 1000);
+    setTimeout(window.combatTick, 1000 / (window.combatSpeedMultiplier || 1));
 }
 
 function randTarget(unitList = allUnits, count = 1, trueRand = false) {
@@ -457,7 +457,7 @@ function heal(healer, targets, amount, calcMods = {}) {
     if (eventState.healStart.length) handleEvent('healStart', {healer, targets, calcMods});
     const heal = [];
     for (let i = 0; i < targets.length; i++) {
-        let healSingle = getModdedStats(targets[i], calcMods.all, calcMods.targets?.[i]).healFactor * amount;
+        let healSingle = getModdedStats(targets[i], calcMods.all, calcMods.targets?.[i]).healFactor * amount[i];
         if (eventState.singleHeal.length) {
             const context = {healer, target: targets[i], healSingle, calcMods, index: [i]};
             handleEvent('singleHeal', context);
