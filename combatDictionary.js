@@ -1,6 +1,6 @@
 import { allUnits } from "./unit/unit.js";
 const modifiers = [];
-let currentUnit = null;
+const currentUnit = [];
 const currentAction = [];
 const elements = ["precision/perfection", "independence/loneliness", "passion/hatred", "ingenuity/insanity"];
 const eventState = {};
@@ -10,8 +10,7 @@ const events = [
     'actionStart', 'positionChange', 'waveChange', 'unitChange', 'statChange'
 ];
 events.forEach(type => eventState[type] = []);
-
-function setUnit(unit) { currentUnit = unit }
+const system = { name: "system" };
 
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms / (window.combatSpeedMultiplier || 1))); }
 
@@ -29,14 +28,17 @@ class Modifier {
             cancel ? this.vars.cancel++ : this.vars.cancel--;
             if (cancelFunc) (cancelFunc).call(this, cancel, temp);
             else {
-                const isActivating = !cancel && !this.vars.applied, isDeactivating = cancel && this.vars.applied;
+                const isActivating = !this.vars.cancel && !this.vars.applied, isDeactivating = this.vars.cancel && this.vars.applied;
                 if (isDeactivating || isActivating) {
-                    if (this.vars.stats) resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats), false);
+                    if (this.vars.stats && this.vars.target) resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats), false);
                     if (!temp && this.vars.cancelListeners) {
                         for (const listener of this.vars.cancelListeners) {
                             this.vars.listeners[listener] = isActivating;
                             if (isActivating) eventState[listener].push(this);
-                            else if (isDeactivating) eventState[listener].splice(eventState[listener].indexOf(this), 1);
+                            else if (isDeactivating) {
+                                const i = eventState[listener].indexOf(this);
+                                if (i > -1) eventState[listener].splice(i, 1);
+                            }
                         }
                     }
                     this.vars.applied = isActivating;
@@ -66,12 +68,19 @@ class Modifier {
                 } else this.vars.target = unit;
             }
         });
+        if (currentAction.length) {
+            this.vars.parent = currentAction.at(-1);
+            if (currentAction.at(-1).vars) currentAction.at(-1).vars.child ? currentAction.at(-1).vars.child.push(this) : currentAction.at(-1).vars.child = [this];
+        }
         modifiers.push(this);
         if (eventState.modifierStart.length) handleEvent('modifierStart', { modifier: this });
+        currentUnit.push(this.vars.caster);
         currentAction.push(this);
         this.init() ? removeModifier(this) : this.vars.cancel = !(this.vars.applied = this.vars.start = true);
+        if (this.vars.reduction) for (const stat of Object.keys(this.vars.reduction)) this.vars.caster.mult[stat] ? (this.vars.caster.base[stat] -= this.vars.reduction[stat]) && resetStat(this.vars.caster, [stat]) : (this.vars.caster.base[stat] -= this.vars.reduction[stat]) && (this.vars.caster[stat] = Math.max(this.vars.caster[stat] -this.vars.reduction[stat], 0));
         if (this.vars.listeners) for (const eventType in this.vars.listeners) if (this.vars.listeners[eventType]) eventState[eventType].push(this);
         currentAction.pop();
+        currentUnit.pop();
         //window.updateModifiers();
     }
 }
@@ -80,16 +89,17 @@ function handleEvent(eventType, context) {
     const eventList = [...eventState[eventType]];
     context.event = eventType;
     for (let i = eventList.length - 1; i >= 0; i--) {
-        if (!eventList[i].vars.start || !eventState[eventType].includes(eventList[i])) continue;
+        if (!eventState[eventType].includes(eventList[i]) || !eventList[i]?.vars?.start) continue;
+        currentUnit.push(eventList[i]?.vars?.caster)
         currentAction.push(eventList[i]);
+        const stack = [currentAction.length, currentUnit.length];
         try {
-            if (eventList[i] === currentAction.at(-3) && (eventList[i] === currentAction.at(-2) || eventList[i] === currentAction.at(-5))) {
-                logAction(`Modifier ${eventList[i]?.name} was called too many times in one event!`, "error");
-                continue;
-            }
-            if (eventList[i].onTurn(context)) removeModifier(eventList[i]);
+            if (!currentUnit.at(-1)) throw new Error(`No caster found in Modifier: ${eventList[i]?.name}`)
+            if (eventList[i] === currentAction.at(-3) && (eventList[i] === currentAction.at(-2) || eventList[i] === currentAction.at(-5))) logAction(`Modifier ${eventList[i]?.name} was called too many times in one event!`, "error");
+            else if (eventList[i].onTurn(context)) removeModifier(eventList[i]);
         } catch (e) {
             console.error(`Error in ${eventType} listener (${eventList[i]?.name}):`, e);
+            console.log(`currentAction stack: ${currentAction.join(', ')}`);
             try {
                 removeModifier(eventList[i]);
                 logAction(`An error occurred with a modifier.`, "error");
@@ -97,31 +107,42 @@ function handleEvent(eventType, context) {
                 logAction('A major error occurred with a modifier, event list has been purged', "error");
                 modifiers.splice(0, modifiers.length, ...modifiers.filter(mod => mod !== eventList[i]));
                 for (const event of events) if (eventState[event].length) eventState[event] = eventState[event].filter(mod => mod !== eventList[i]);
+            } finally {
+                currentAction.length = stack[0];
+                currentUnit.length = stack[1];
             }
-        } finally { currentAction.pop() }
+        } finally {
+            currentAction.pop();
+            currentUnit.pop();
+        }
     }
     window.updateModifiers();
 }
 
 function removeModifier(modifier) {
-    if (modifier.vars.perm) return;
+    let index;
+    if (modifier.vars.perm || (index = modifiers.indexOf(modifier)) === -1) return;
     if (modifier.vars.passive && allUnits.includes(modifier.vars.caster)) {
         if (modifier.vars.caster.hp === 0 && modifier.vars.focus) {
+            currentUnit.push(modifier.vars.caster);
             currentAction.push(modifier);
             modifier.cancel();
             currentAction.pop();
+            currentUnit.pop();
         }
         return;
     }
     if (modifier.vars?.applied) {
+        currentUnit.push(modifier.vars.caster);
         currentAction.push(modifier);
         modifier.cancel();
         currentAction.pop();
+        currentUnit.pop();
     }
     if (eventState.modifierEnd.length) handleEvent('modifierEnd', { modifier });
     if (modifier.vars?.listeners) for (const event in modifier.vars.listeners) if (modifier.vars.listeners[event] && eventState[event].indexOf(modifier) > -1) eventState[event].splice(eventState[event].indexOf(modifier), 1);
-    const index = modifiers.indexOf(modifier);
     if (index !== -1) modifiers.splice(index, 1);
+    if (modifier.vars.parent?.vars) modifier.vars.parent.vars.child.length > 1 ? (index = modifier.vars.parent.vars.child.indexOf(modifier)) > -1 && modifier.vars.parent.vars.child.splice(index, 1) : delete modifier.vars.parent.vars.child;
 }
 
 function basicModifier(name, description, vari) {
@@ -135,9 +156,26 @@ function basicModifier(name, description, vari) {
 }
 
 new Modifier("Reapply Passive", "Reapplies passive modifiers on unit revive",
-    { caster: null, target: null, properties: ["system"], listeners: { unitChange: true }, perm: true },
+    { caster: system, target: system, properties: ["system"], listeners: { unitChange: true }, perm: true },
     function() {},
-    function(context) { if (context.type === "revive") for (const mod of modifiers.filter(mod => mod.vars.caster === context.unit && mod.vars.passive)) mod.cancel(false) },
+    function(context) { if (context.type === "revive") for (const mod of modifiers.filter(m => m.vars.caster === context.unit && m.vars.passive)) mod.cancel(false) },
+    function() {},
+    function() {}
+)
+
+new Modifier("Remove Reduction", "Remove reduction on midline position change",
+    { caster: system, target: system, properties: ["system"], listeners: { positionChange: true }, perm: true },
+    function() {},
+    function(context) {
+        for (let i = modifiers.length - 1; i >= 0; i--) {
+            if (modifiers[i].vars.caster !== context.unit || !modifiers[i].vars.reduction) continue;
+            for (const stat of Object.keys(modifiers[i].vars.reduction)) modifiers[i].vars.caster.mult[stat] ? (modifiers[i].vars.caster.base[stat] += modifiers[i].vars.reduction[stat]) && resetStat(modifiers[i].vars.caster, [stat]) : (modifiers[i].vars.caster.base[stat] += modifiers[i].vars.reduction[stat]) && (modifiers[i].vars.caster[stat] = Math.min(modifiers[i].vars.caster[stat] + modifiers[i].vars.reduction[stat], modifiers[i].vars.caster.base[stat]));
+            modifiers[i].vars.passive = false;
+            removeModifier(modifiers[i]);
+        }
+        context.unit.skills.passive?.code?.call(context.unit);
+        context.unit.skills.augment?.code?.call(context.unit);
+    },
     function() {},
     function() {}
 )
@@ -184,7 +222,12 @@ function regenerateResources(unit) {
 
 function enemyTurn(unit) {
     if (unit.skills.special && unit.stamina >= (unit.skills.special.cost?.stamina || 0) && (unit.mana || 0) >= (unit.skills.special.cost?.mana || 0) && (unit.energy || 0) >= (unit.skills.special.cost?.energy || 0) && Math.random() < 0.2) return executeEnemyAction(unit, unit.skills.special);
-    if (Math.random < 1/16) return logAction(`${unit.name} is resting!`, 'info')
+    if (Math.random() < 1/16){
+        if (eventState.actionStart.length) handleEvent('actionStart', { unit, action: 'skip' });
+        logAction(`${unit.name} is resting!`, 'info');
+        if (eventState.turnEnd.length) handleEvent('turnEnd', { unit });
+        return setTimeout(window.combatTick, 1000 / (window.combatSpeedMultiplier || 1));
+    }
     const availableActions = [];
     if (unit.skills.basic && unit.stamina >= (unit.skills.basic.cost?.stamina || 0) && (unit.mana || 0) >= (unit.skills.basic.cost?.mana || 0) && (unit.energy || 0) >= (unit.skills.basic.cost?.energy || 0)) availableActions.push(unit.skills.basic);
     if (unit.skills.secondary && unit.stamina >= (unit.skills.secondary.cost?.stamina || 0) && (unit.mana || 0) >= (unit.skills.secondary.cost?.mana || 0) && (unit.energy || 0) >= (unit.skills.secondary.cost?.energy || 0)) availableActions.push(unit.skills.secondary);
@@ -195,8 +238,8 @@ function enemyTurn(unit) {
 }
 
 function executeEnemyAction(unit, action) {
-    if (eventState.actionStart.length) handleEvent('actionStart', {unit, action});
-    if (!action.cost || resourceChange(unit, action.cost)) {
+    if (eventState.actionStart.length) handleEvent('actionStart', { unit, action: Object.keys(unit.skills).find(s => unit.skills[s] === action) });
+    if (!action.cost || resourceChange(unit, action.cost, false)) {
         if (action.properties.includes('physical')) unit.previousAction[0] = true;
         if (action.properties.includes('mystic')) unit.previousAction[1] = true;
         if (action.properties.includes('techno')) unit.previousAction[2] = true;
@@ -209,19 +252,20 @@ function executeEnemyAction(unit, action) {
 }
 
 function randTarget(unitList = allUnits, count = 1, trueRand = false) {
-    if (eventState.targetStart.length) handleEvent('targetStart', { unitList, count, trueRand });
+    const context = { unitList, count, trueRand, targetMods: {} };
+    if (eventState.targetStart.length) handleEvent('targetStart', context);
     if (count >= unitList.length) {
         if (eventState.targets.length) handleEvent('targets', { selectedTargets: unitList, count, trueRand });
         return unitList;
     }
-    const weights = unitList.map(u => u.presence);
+    const weights = unitList.map((u, i) => getModdedStats(u, context.targetMods?.all, context.targetMods?.targets?.[i]).presence );
     if (count === 1) {
         if (trueRand) {
-            if (eventState.targets.length) handleEvent('targets', { selectedTargets: unitList, count, trueRand });
-            return [unitList[Math.floor(Math.random() * unitList.length)]];
+            const selected = [unitList[Math.floor(Math.random() * unitList.length)]];
+            if (eventState.targets.length) handleEvent('targets', { selectedTargets: selected, count, trueRand });
+            return selected;
         }
-        const totalWeight = weights.reduce((sum, w) => sum + w, 0);
-        const randChoice = Math.random() * totalWeight;
+        const randChoice = Math.random() * weights.reduce((sum, w) => sum + w, 0);
         let cumulative = 0;
         for (let i = 0; i < unitList.length; i++) {
             cumulative += weights[i];
@@ -233,21 +277,19 @@ function randTarget(unitList = allUnits, count = 1, trueRand = false) {
     }
     let selectedTargets = [];
     const availableUnits = [...unitList];
-    const availableWeights = [...weights];
     for (let i = 0; i < count && availableUnits.length > 0; i++) {
         let selectedUnit;
         if (trueRand) {
             const idx = Math.floor(Math.random() * availableUnits.length);
             selectedUnit = availableUnits.splice(idx, 1)[0];
-            availableWeights.splice(idx, 1);
         } else {
-            const randChoice = Math.random() * availableWeights.reduce((sum, w) => sum + w, 0);
+            const randChoice = Math.random() * weights.reduce((sum, w) => sum + w, 0);
             let cumulative = 0;
             for (let j = 0; j < availableUnits.length; j++) {
-                cumulative += availableWeights[j];
+                cumulative += weights[j];
                 if (randChoice <= cumulative) {
                     selectedUnit = availableUnits.splice(j, 1)[0];
-                    availableWeights.splice(j, 1);
+                    weights.splice(j, 1);
                     break;
                 }
             }
@@ -260,7 +302,7 @@ function randTarget(unitList = allUnits, count = 1, trueRand = false) {
 
 function selectTarget(action, target, targetType = 'unit') {
     document.getElementById('selection').style.display = 'block';
-    const unit = currentUnit;
+    const unit = currentUnit.at(-1);
     let maxSelections = target[0];
     if (target[0] === -1 || target[0] > target[2].length) maxSelections = target[2].length;
     let selectionTitle = `<h2 style="text-align:center;">Action: ${action.name}</h2>`;
@@ -325,7 +367,7 @@ function selectTarget(action, target, targetType = 'unit') {
             }
         }
         if (eventState.targets.length) handleEvent('targets', {action, selectedTargets});
-        if (!unit.cancel && (!action.cost || resourceChange(unit, action.cost))) {
+        if (!unit.cancel && (!action.cost || resourceChange(unit, action.cost, false))) {
             logAction(`<strong>${unit.name}'s turn$' (Special Interrupt!)</strong>`, 'turn');
             if (eventState.turnStart.length) handleEvent('turnStart', { unit });
             currentAction.push(action);
@@ -338,13 +380,13 @@ function selectTarget(action, target, targetType = 'unit') {
         cleanupGlobalHandlers();
         if (eventState.turnEnd.length) { handleEvent('turnEnd', { unit }) }
         currentAction.pop();
+        unit.specialReady = false;
     }
 
     function exitTargetSelection () { 
         const selectionDiv = document.getElementById("selection");
         if (selectionDiv) selectionDiv.innerHTML = "";
         cleanupGlobalHandlers();
-        if (unit) unit.specialReady = true;
         document.getElementById('selection').style.display = 'none';
     }
     window.checkTargetSelection = checkTargetSelection;
@@ -432,7 +474,7 @@ function damage(attacker, defenders, critical, calcMods = {}) {
                 if (eventState.singleDamage.length) {
                     const context = {attacker, defender: defenders[i], damageSingle, critical: critical[i][j], calcMods, index: [i, j]};
                     handleEvent('singleDamage', context);
-                    damageSingle = context.nil ? 0 : Math.ceil(Math.max((damageSingle + (context.bonus || 0))*(context.mult || 1)/(context.div || 1) + (context.flatBonus || 0), (critical[i][j] < 1 ? attackMods.attack : attackMods.attack * (critical[i][j] + 1))/8));
+                    damageSingle = context.nil ? 0 : Math.ceil(Math.max((damageSingle + (context.bonus || 0))*(context.mult || 1)/(context.div || 1) + (context.flatBonus || 0), damageSingle ? (critical[i][j] < 1 ? attackMods.attack : attackMods.attack * (critical[i][j] + 1))/8 : 0));
                 }
                 hit.push(`${critical[i][j] <= 0 ? '<i>0</i>' : critical[i][j] >= 1 ? `<b>${damageSingle}</b>` : damageSingle}`);
                 output.push(damageSingle);
@@ -442,7 +484,7 @@ function damage(attacker, defenders, critical, calcMods = {}) {
                 defenders[i].hp = Math.max(defenders[i].hp - total, 0);
                 if (defenders[i].hp === 0) {
                     if (eventState.unitChange.length) handleEvent('unitChange', {type: 'downed', unit: defenders[i]});
-                    if (defenders[i].hp === 0) for (const mod of modifiers) if (mod.vars.caster === defenders[i] && (mod.vars.focus || mod.vars.penalty)) removeModifier(mod);
+                    if (defenders[i].hp === 0) for (let i = modifiers.length - 1; i >= 0; i--) if (modifiers[i].vars.caster === defenders[i] && (modifiers[i].vars.focus || modifiers[i].vars.penalty)) removeModifier(modifiers[i]);
                 }
                 critical[i].length > 1 ? logAction(`${attacker.name} makes ${critical[i].length} attacks on ${defenders[i].name} dealing ${hit.join(", ")} for a total of ${total} damage!`, "hit") : logAction(`${attacker.name} hits ${defenders[i].name} dealing ${hit[0]} damage!`, "hit");
                 dCheck = true;
@@ -490,7 +532,7 @@ function hpChange(unit, targets, values) {
         defenders[i].hp = Math.max(defenders[i].hp - damageSingle, 0);
         if (defenders[i].hp === 0) {
             if (eventState.unitChange.length) handleEvent('unitChange', {type: 'downed', unit: defenders[i]});
-            if (defenders[i].hp === 0) for (const mod of modifiers) if (mod.vars.caster === defenders[i] && (mod.vars.focus || mod.vars.penalty)) removeModifier(mod);
+            if (defenders[i].hp === 0) for (let i = modifiers.length - 1; i >= 0; i--) if (modifiers[i].vars.caster === defenders[i] && (modifiers[i].vars.focus || modifiers[i].vars.penalty)) removeModifier(modifiers[i]);
         }
         logAction(`${unit.name} dealt ${damageSingle} damage to ${defenders[i].name}!`, "hit");
     }
@@ -529,16 +571,17 @@ function resistDebuff(attacker, defenders, calcMods = {}) {
     return will;
 }
 
-function resourceChange(unit, resources, drain = false) {
+function resourceChange(unit, resources, add = true, drain = false) {
     const { position, ...actualResources } = resources;
     const context = {unit, resources: actualResources};
     if (eventState.resourceChange.length) handleEvent('resourceChange', context);
     for (const resource in context.resources) {
-        context.resources[resource] = (context[resource]?.nil || context.all?.nil) ? 0 : (resources[resource] + (context[resource]?.bonus || 0) + (context.all?.bonus || 0))*(context[resource]?.mult || 1)*(context.all?.mult || 1)/(context[resource]?.div || 1)/(context.all?.div || 1) + (context[resource]?.flatBonus || 0) + (context.all?.flatBonus || 0);
-        if (!drain && -context.resources[resource] > unit[resource]) return (currentAction.length === 1 && currentUnit.team === 'player') ? !showMessage(`Not enough ${resource}!`, "error", "selection") : false;
+        let change = (context[resource]?.nil || context.all?.nil) ? 0 : (resources[resource] + (context[resource]?.bonus || 0) + (context.all?.bonus || 0))*(context[resource]?.mult || 1)*(context.all?.mult || 1)/(context[resource]?.div || 1)/(context.all?.div || 1) + (context[resource]?.flatBonus || 0) + (context.all?.flatBonus || 0);
+        context.resources[resource] = add ? change : -change;
+        if (!drain && -context.resources[resource] > unit[resource]) return (currentAction.length === 1 && currentUnit.at(-1).team === 'player') ? !logAction(`Not enough ${resource}!`, "warning") : false;
     }
     for (const resource in context.resources) unit[resource] = Math.ceil(Math.max(0, Math.min(unit[resource] + context.resources[resource], unit.base[resource])));
-    return true
+    return true;
 }
 
 function getModdedStats(baseUnit, ...modObjects) {
@@ -570,4 +613,4 @@ function unitByStat(units, statName, type = 'number', max = true, count = 1) {
     return sorted.slice(0, count);
 }
 
-export { setUnit, sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentUnit, currentAction, elements, eventState };
+export { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentUnit, currentAction, elements, eventState };

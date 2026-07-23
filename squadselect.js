@@ -2,7 +2,7 @@ import { DexSoldier } from './unit/dexSoldier.js';
 import { FourArcher } from './unit/fourArcher.js';
 import { Mannequin } from './unit/mannequin.js';
 import { Silhouette } from './unit/silhouette.js';
-import { setUnit, sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, modifiers, currentUnit, currentAction, elements, eventState } from './combatDictionary.js';
+import { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, modifiers, currentUnit, currentAction, elements, eventState } from './combatDictionary.js';
 import { Unit, createUnit, cloneUnit, allUnits } from './unit/unit.js';
 
 const availableUnits = [DexSoldier, FourArcher, Mannequin, Silhouette];
@@ -182,7 +182,7 @@ function renderSkillRoster() {
             const isAlreadySelected = activeSkills.includes(skill); 
             const skillDiv = document.createElement('div');
             skillDiv.style.cssText = `padding: 8px; margin: 5px 0; background: ${isAlreadySelected ? '#222' : '#333'}; border-left: 4px solid ${categoryColors[category]}; border-radius: 4px; cursor: ${isAlreadySelected ? 'not-allowed' : 'pointer'}; opacity: ${isAlreadySelected ? '0.5' : '1'}; transition: background 0.2s;`;
-            skillDiv.innerHTML = `<strong>${skill.name}</strong><br><small style="color: #ccc;">${skill.description ? skill.description.replace(/\n/g, '<br>') : ''}</small>`;
+            skillDiv.innerHTML = `<strong>${skill.name}</strong><br><small style="color: #ccc;">${alterDesc(skill, category)}</small>`;
             if (!isAlreadySelected) {
                 skillDiv.addEventListener('mouseenter', () => skillDiv.style.background = '#444');
                 skillDiv.addEventListener('mouseleave', () => skillDiv.style.background = '#333');
@@ -341,7 +341,7 @@ function startCombatWithSelected() {
     // 2. Save to localStorage
     localStorage.setItem('pendingSquad', JSON.stringify(squadData));
     // 3. Navigate to the combat page
-    window.location.href = 'combat.html'; // Change to 'squadproto.html' if that's your file name
+    window.location.href = 'combat.html';
 }
 
 function updateInfoDisplay(unit) {
@@ -358,8 +358,8 @@ function updateInfoDisplay(unit) {
     for (const skillName in unit.skills) {
         if (Array.isArray(unit.skills[skillName])) {
             html += `<h4>${skillName} skills</h4>`;
-            for (const skill of unit.skills[skillName]) html += `<div class="skill-info-box"><div class="skill-name">${skill.name}</div><p><strong>Description:</strong><br>${skill.description ? skill.description.replace(/\n/g, '<br>') : 'No description available.'}</p></div><hr>`;
-        } else html += `<h4>${skillName} skill</h4><div class="skill-info-box"><div class="skill-name">${unit.skills[skillName].name}</div><p><strong>Description:</strong><br>${unit.skills[skillName].description ? unit.skills[skillName].description.replace(/\n/g, '<br>') : 'No description available.'}</p></div><hr>`;
+            for (const skill of unit.skills[skillName]) html += `<div class="skill-info-box"><div class="skill-name">${skill.name}</div><p><strong>Description:</strong><br>${skill.description ? alterDesc(skill, skillName) : 'No description available.'}</p></div><hr>`;
+        } else html += `<h4>${skillName} skill</h4><div class="skill-info-box"><div class="skill-name">${unit.skills[skillName].name}</div><p><strong>Description:</strong><br>${unit.skills[skillName].description ? alterDesc(unit.skills[skillName], skillName) : 'No description available.'}</p></div><hr>`;
     }
     infoDisplay.innerHTML = html + '</div>';
 }
@@ -368,4 +368,31 @@ export function startCombat() {
     document.getElementById('unit-selection-panel').style.display = 'block';
     //document.getElementById('game-controls').style.display = 'none';
     initUnitSelection();
+}
+
+function alterDesc(skill, category) {
+    if (!skill.description) return '';
+    let desc = '';
+    if (skill.reduction) {
+        desc += "Reduce ";
+        for (const stat in skill.reduction) desc += ['hp', 'stamina', 'mana', 'energy'].includes(stat) ? `max ${stat === 'hp' ? 'HP' : stat.charAt(0).toUpperCase() + stat.slice(1)} by ${skill.reduction[stat]}, ` : `base ${stat.charAt(0).toUpperCase() + stat.slice(1)} by ${skill.reduction[stat]}, `;
+        desc = desc.slice(0, -2) + '<br>';
+    }
+    if (skill.cost) {
+        if (skill.cost.position) desc += `${skill.cost.position.charAt(0).toUpperCase() + skill.cost.position.slice(1)}line only, `;
+        const list = Object.keys(skill.cost).filter(s => s !== 'position');
+        if (list.length) {
+            desc += 'Cost ';
+            for (const stat of list) desc += `${skill.cost[stat]} ${stat.charAt(0).toUpperCase() + stat.slice(1)}, `;
+        }
+        desc = desc.slice(0, -2) + '<br>';
+    }
+    const block = [];
+    if (['special', 'basic', 'secondary'].includes(category)) for (const [res, attrib] of [['stamina', 'physical'], ['mana', 'mystic'], ['energy', 'techno']]) if (!(skill.cost && Object.keys(skill.cost).includes(res)) && skill.properties.includes(attrib)) block.push(res);
+    if (block.length) {
+        desc += "Blocks next turn's regeneration of ";
+        for (const stat of block) desc += `${stat.charAt(0).toUpperCase() + stat.slice(1)}, `;
+        desc = desc.slice(0, -2) + '<br>';
+    }
+    return desc + skill.description.replace(/\n/g, '<br>');
 }

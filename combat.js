@@ -2,8 +2,8 @@ import { DexSoldier } from './unit/dexSoldier.js';
 import { FourArcher } from './unit/fourArcher.js';
 import { Mannequin } from './unit/mannequin.js';
 import { Silhouette } from './unit/silhouette.js';
-/*import { enemy } from './unit/enemy.js';
-import { mysticEnemy } from './unit/mysticEnemy.js';
+import { enemy } from './unit/enemy.js';
+/*import { mysticEnemy } from './unit/mysticEnemy.js';
 import { technoEnemy } from './unit/technoEnemy.js';
 import { magitechEnemy } from './unit/magitechEnemy.js';
 import { ArtificialSolider } from './unit/artificialSolider.js';
@@ -14,11 +14,10 @@ import { Dreamer } from './unit/dreamer.js';
 import { Experiment } from './unit/experiment.js';
 import { Reject } from './unit/reject.js';
 import { Revolutionary } from './unit/revolutionary.js';*/
-import { Modifier, handleEvent, removeModifier, basicModifier, setUnit, sleep, logAction, selectTarget, unitFilter, showMessage, attack, resistDebuff, resetStat, regenerateResources, crit, damage, randTarget, enemyTurn, cleanupGlobalHandlers, modifiers, currentUnit, currentAction, eventState, resourceChange } from './combatDictionary.js';
+import { Modifier, handleEvent, removeModifier, basicModifier, sleep, logAction, selectTarget, unitFilter, showMessage, attack, resistDebuff, resetStat, regenerateResources, crit, damage, randTarget, enemyTurn, cleanupGlobalHandlers, modifiers, currentUnit, currentAction, eventState, resourceChange } from './combatDictionary.js';
 import { Unit, createUnit, cloneUnit, allUnits } from './unit/unit.js';
 
 let turnCounter = 1;
-let currentTurn = 0;
 let wave = 1;
 const availableUnits = [DexSoldier, FourArcher, Mannequin, Silhouette];
 let selectedUnits = [];
@@ -102,7 +101,7 @@ function updateBattleDisplay() {
 function renderUnitCard(unit, isEnemy = false, inFrontline = false) {
     const card = document.createElement('div');
     const isDefeated = unit.hp <= 0;
-    const isCurrentTurn = currentUnit && unit.name === currentUnit.name;
+    const isCurrentTurn = unit.name === currentUnit[0]?.name;
     const isStunned = unit.stun;
     const isSpecialReady = unit.specialReady && !isDefeated;
     
@@ -252,9 +251,9 @@ function renderUnitDetails(unit) {
         <div style="margin-top:10px;">
             <div style="font-size:12px; color:#888; margin-bottom:5px;">AUTO-BEHAVIOR</div>
             <div class="doctrine-toggle">
-                ${ unit.skills.basic ? `<button class="doctrine-btn ${unit.autoBehavior === 'basic' ? 'active' : ''}" data-behavior="basic" data-unit="${unit.name}">Basic</button>` : ''}
-                ${ unit.skills.secondary ?`<button class="doctrine-btn ${unit.autoBehavior === 'secondary' ? 'active' : ''}" data-behavior="secondary" data-unit="${unit.name}">Secondary</button>` : ''}
-                ${ unit.skills.basic && unit.skills.secondary ?`<button class="doctrine-btn ${unit.autoBehavior === 'both' ? 'active' : ''}" data-behavior="both" data-unit="${unit.name}">Both</button>` : ''}
+                ${ unit.skills?.basic ? `<button class="doctrine-btn ${unit.autoBehavior === 'basic' ? 'active' : ''}" data-behavior="basic" data-unit="${unit.name}">Basic</button>` : ''}
+                ${ unit.skills?.secondary ?`<button class="doctrine-btn ${unit.autoBehavior === 'secondary' ? 'active' : ''}" data-behavior="secondary" data-unit="${unit.name}">Secondary</button>` : ''}
+                ${ unit.skills?.basic && unit.skills?.secondary ?`<button class="doctrine-btn ${unit.autoBehavior === 'both' ? 'active' : ''}" data-behavior="both" data-unit="${unit.name}">Both</button>` : ''}
                 ${`<button class="doctrine-btn ${unit.autoBehavior === 'none' ? 'active' : ''}" data-behavior="none" data-unit="${unit.name}">None</button>`}
             </div>
         </div>
@@ -361,12 +360,9 @@ function initInspectorControls() {
 // ============================================
 
 export async function combatTick() {
-    if (currentUnit) currentUnit.timer += 1000;
-    setUnit(null);
     updateBattleDisplay();
-    await sleep(500);
+    await sleep(getDelay(500));
     if (frontTest()) return;
-    if (currentTurn === -1) currentTurn = 0;
     let turn;
     let isSpecialInterrupt = false;
     // 1. CHECK FOR PENDING SPECIAL INTERRUPT
@@ -377,24 +373,18 @@ export async function combatTick() {
         isSpecialInterrupt = true;
     } else {
         // 2. NORMAL TURN SEARCH
+        const alive = allUnits.filter(u => u.hp);
         while (turn == undefined) {
-            for (let i = 0; i < allUnits.length; i++) {
-                const unit = allUnits[(currentTurn + i) % allUnits.length];
-                if (unit.hp <= 0) continue;
-                unit.timer -= unit.speed;
-                if (unit.timer <= 0) {
-                    turn = unit;
-                    currentTurn = (currentTurn + i) % allUnits.length;
-                    break;
-                }
-                await sleep(0);
-            }
+            const list = alive.filter(u => u.timer <= 0);
+            if (!list.length) for (const unit of alive) unit.timer -= unit.speed, await sleep(getDelay(12));
+            else turn = list.reduce((low, cur) => cur.timer < low.timer ? cur : low);
             updateBattleDisplay();
         }
+        logAction(`<strong>Turn ${turnCounter++}: ${turn.name}'s turn</strong>`, 'turn');
+        if (eventState.turnStart.length) handleEvent('turnStart', { unit: turn });
     }
-    if (eventState.turnStart.length && !isSpecialInterrupt) handleEvent('turnStart', { unit: turn });
     if (!turn.stun) {
-        setUnit(turn);
+        currentUnit.push(turn);
         regenerateResources(turn);
         updateBattleDisplay();
         
@@ -402,16 +392,14 @@ export async function combatTick() {
             if (isSpecialInterrupt) {
                 // FORCE SPECIAL ACTION
                 const specialSkill = turn.skills.special;
-                if (specialSkill && typeof specialSkill.code === 'function') {
-                    executeSpecialAction(turn, specialSkill);
-                } else {
+                if (specialSkill && typeof specialSkill.code === 'function') executeSpecialAction(turn, specialSkill);
+                else {
                     // Fallback if no special skill is equipped
                     logAction("Can't find special action!", "error");
                     if (eventState.turnEnd.length) handleEvent('turnEnd', { unit: turn });
                     setTimeout(combatTick, getDelay(500));
                 }
             } else {
-                logAction(`<strong>Turn ${turnCounter++}: ${turn.name}'s turn</strong>`, 'turn');
                 const behavior = turn.autoBehavior || (turn.skills.basic ? 'basic' : turn.skills.secondary ? 'secondary' : 'none');
                 if (behavior === 'none') {
                     if (eventState.actionStart.length) handleEvent('actionStart', {unit, action: 'skip'});
@@ -421,23 +409,16 @@ export async function combatTick() {
                     if (eventState.turnEnd.length) handleEvent('turnEnd', { unit: turn });
                     turn.timer += 1000;
                     setTimeout(combatTick, getDelay(500));
-                } else if (behavior === 'both') {
-                    executeBoth(turn);
-                } else {
-                    executeAutoAction(turn, behavior);
-                }
+                    turn.specialReady = true;
+                } else if (behavior === 'both') executeBoth(turn);
+                else executeAutoAction(turn, behavior);
             }
         }
-        
-        if (turn.team === 'enemy') {
-            logAction(`<strong>Turn ${turnCounter++}: ${turn.name}'s turn</strong>`, 'turn');
-            enemyTurn(turn);
-        }
+        if (turn.team === 'enemy') enemyTurn(turn);
+        currentUnit.pop().timer += 1000;
     } else {
         logAction(`${turn.name}'s turn was skipped due to being stunned!`, 'miss');
-        if (eventState.turnEnd.length) {
-            handleEvent('turnEnd', { unit: turn });
-        }
+        if (eventState.turnEnd.length) handleEvent('turnEnd', { unit: turn });
         turn.timer += 1000;
         setTimeout(combatTick, getDelay(500));
     }
@@ -445,7 +426,7 @@ export async function combatTick() {
 
 function executeAutoAction(unit, action) {
     if (eventState.actionStart.length) handleEvent('actionStart', {unit, action});
-    if (!unit.skills[action].cost || resourceChange(unit, unit.skills[action].cost)) {
+    if (!unit.skills[action].cost || resourceChange(unit, unit.skills[action].cost, false)) {
         if (unit.skills[action].properties.includes('physical')) unit.previousAction[0] = true;
         if (unit.skills[action].properties.includes('mystic')) unit.previousAction[1] = true;
         if (unit.skills[action].properties.includes('techno')) unit.previousAction[2] = true;
@@ -461,24 +442,13 @@ function executeAutoAction(unit, action) {
 function executeBoth(unit) {
     if (eventState.actionStart.length) handleEvent('actionStart', {unit, action: 'both'});
     const cost = {};
-    for (const res of ['stamina', 'mana', 'energy']) {
-        let attrib;
-        switch (res) {
-            case 'stamina':
-                attrib = 'physical'
-                break;
-            case 'mana':
-                attrib = 'mystic'
-                break;
-            case 'energy':
-                attrib = 'techno'
-        }
+    for (const [res, attrib] of [['stamina', 'physical'], ['mana', 'mystic'], ['energy', 'techno']]) {
         let count = unit.skills.basic?.properties?.includes(attrib) + unit.skills.secondary?.properties?.includes(attrib);
         if (count) cost[res] = count * 10;
         count = ((unit.skills.basic?.cost?.[res] || 0) + (unit.skills.secondary?.cost?.[res] || 0));
         if (count) cost[res] = (cost[res] || 0) + count;
     }
-    if (JSON.stringify(cost) === '{}' || resourceChange(unit, cost)) {
+    if (JSON.stringify(cost) === '{}' || resourceChange(unit, cost, false)) {
         if (unit.skills.basic?.properties?.includes('physical') || unit.skills.secondary?.properties?.includes('physical')) unit.previousAction[0] = true;
         if (unit.skills.basic?.properties?.includes('mystic') || unit.skills.secondary?.properties?.includes('mystic')) unit.previousAction[1] = true;
         if (unit.skills.basic?.properties?.includes('techno') || unit.skills.secondary?.properties?.includes('techno')) unit.previousAction[2] = true;
@@ -488,6 +458,7 @@ function executeBoth(unit) {
         currentAction.push(unit.skills.secondary);
         unit.skills.secondary.code.call(unit);
         currentAction.pop();
+        unit.specialReady = false;
     }
     if (eventState.turnEnd.length) handleEvent('turnEnd', { unit });
     setTimeout(combatTick, getDelay(500));
@@ -497,7 +468,10 @@ function executeSpecialAction(unit, specialSkill) {
     if (eventState.actionStart.length) handleEvent('actionStart', {unit, action: 'special'});
     if (specialSkill.target) specialSkill.target.call(unit);
     else {
-        if (specialSkill.cost && !resourceChange(unit, specialSkill.cost)) return showMessage(`${unit.name}'s special was canceled!`, 'error', 'validation-message');
+        if (specialSkill.cost && !resourceChange(unit, specialSkill.cost, false)) {
+            logAction(`${unit.name}'s special was canceled!`, 'error');
+            return setTimeout(combatTick, getDelay(2000));
+        }
         logAction(`<strong>${unit.name}'s turn$' (Special Interrupt!)</strong>`, 'turn');
         if (eventState.turnStart.length) handleEvent('turnStart', { unit });
         currentAction.push(specialSkill);
@@ -514,10 +488,9 @@ function executeSpecialAction(unit, specialSkill) {
 
 export function advanceWave(x = 0) {
     if (x) wave = x;
-    let turnId = allUnits[currentTurn]?.name;
     if (wave < 3) {
         allUnits.splice(0, allUnits.length, ...allUnits.filter(unit => unit.team === 'player'));
-        for (const mod of modifiers) if (!allUnits.includes(mod.vars.caster)) removeModifier(mod);
+        for (let i = modifiers.length - 1; i >= 0; i--) if (!allUnits.includes(modifiers[i].vars.caster)) removeModifier(modifiers[i]);
     }
     let i = allUnits.length;
     switch (wave) {
@@ -530,7 +503,6 @@ export function advanceWave(x = 0) {
         default:
             return true;
     }
-    currentTurn = allUnits.findIndex(unit => unit.name === turnId);
     logAction(`<strong>Wave ${++wave}!</strong>`, 'turn');
     if (eventState.waveChange.length) handleEvent('waveChange', { wave });
     updateBattleDisplay();
@@ -559,19 +531,23 @@ function waveCalc(units, mult) {
             enemyPoints.delete(Reject);
         }
     }*/
-   enemyPoints = new Map([
-        [DexSoldier, 81/16], [FourArcher, 81/16], [Mannequin, 81/16],
-        [Silhouette, 81/16]
+    let playerPoints = new Map([
+        [DexSoldier, 81/16], [FourArcher, 81/16], [Mannequin, 81/16], [Silhouette, 81/16]
     ]);
+    enemyPoints = new Map([[enemy, 81/16]])
     let enemies = [];
     let points = 0;
     //const front = [Experiment, Reject, enemy, ArtificialSolider, mysticEnemy, magitechEnemy].filter(e => enemyPoints.has(e));
-    const front = [DexSoldier, Mannequin, Silhouette].filter(e => enemyPoints.has(e));
+    const front = [enemy].filter(e => enemyPoints.has(e));
+    const frontEnem = front[Math.floor(Math.random() * front.length)];
+    enemies.push(frontEnem);
+    points += enemyPoints.get(frontEnem);
     while (points < total) {
-        const enem = points === 0 ? front[Math.floor(Math.random() * front.length)] : Array.from(enemyPoints.keys())[Math.floor(Math.random() * enemyPoints.size)];
-        if (points + enemyPoints.get(enem) <= total || (Math.abs(total - points - enemyPoints.get(enem)) < Math.abs(total - points))) {
+        const enem = Math.random() < .5 ? [...enemyPoints.keys(), ...playerPoints.keys()][Math.floor(Math.random() * (enemyPoints.size+playerPoints.size))] : [...enemyPoints.keys()][Math.floor(Math.random() * enemyPoints.size)];
+        const p = enemyPoints.has(enem) ? enemyPoints.get(enem) : playerPoints.get(enem);
+        if (points + p <= total || (Math.abs(total - points - p) < Math.abs(total - points))) {
             enemies.push(enem);
-            points += enemyPoints.get(enem);
+            points += p;
         } else break;
     }
     return enemies;
@@ -673,7 +649,7 @@ function frontTest() {
                 unit.timer += 1000;
             }
             logAction(`All enemy midline units moved to the frontline!`, 'turn');
-        } else if (advanceWave() && !unitFilter('enemy', 'front', false).length) return !! showMessage('Victory!', 'success', 'message-container', 0);
+        } else if (advanceWave() && !unitFilter('enemy', 'front', false).length) return !!showMessage('Victory!', 'success', 'message-container', 0);
     }
 }
 
