@@ -157,10 +157,15 @@ Mannequin.skills = {
             description: "Attacks with increased attack to a single target 4 times or two targets 2 times, requires reload to be used again",
             code() {
                 (this.custom ??= {}).dualWield ??= 1;
-                if (this.custom.dualWield--) {
+                if (this.custom.dualWield) {
+                    this.custom.dualWield--;
                     const targets = randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false), Math.ceil(Math.random() * 2));
                     attack(this, targets, 4 / targets.length, { attacker: { attack: { bonus: 25 } } });
-                } else this.previousAction[this.custom.dualWield++] = !!logAction(`${this.name} is reloading weapons!`, "info");
+                } else {
+                    this.custom.dualWield++;
+                    this.previousAction[0] = false;
+                    logAction(`${this.name} is reloading weapons!`, "info");
+                }
             }
         },
         {
@@ -170,8 +175,12 @@ Mannequin.skills = {
             description: "Attacks a single target with increased attack/accuracy/focus, can target backline, requires reload to be used again",
             code() {
                 (this.custom ??= {}).snipe ??= 1;
-                if (this.custom.snipe--) attack(this, randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "", false)), 1, { attacker: { attack: { bonus: 30 }, accuracy: { bonus: 35 }, focus: { bonus: 40 } } });
-                else this.previousAction[this.custom.snipe++] = !!logAction(`${this.name} is reloading a weapon!`, "info");
+                if (this.custom.snipe) this.custom.snipe--, attack(this, randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "", false)), 1, { attacker: { attack: { bonus: 30 }, accuracy: { bonus: 35 }, focus: { bonus: 40 } } });
+                else {
+                    this.custom.snipe++;
+                    this.previousAction[0] = false;
+                    logAction(`${this.name} is reloading a weapon!`, "info");
+                }
             }
         },
         {
@@ -285,9 +294,9 @@ Mannequin.skills = {
                     function() { this.vars.caster.custom = { dualWield: 1, snipe: 1, focusFire: 1 } },
                     function(context) {
                         if (context.unit === this.vars.caster && this.vars.applied) {
-                            if (!this.vars.caster.custom.dualWield) this.vars.caster.custom.dualWield = resourceChange(this.vars.caster, this.vars.cost, false);
-                            if (!this.vars.caster.custom.snipe) this.vars.caster.custom.snipe = resourceChange(this.vars.caster, this.vars.cost, false);
-                            if (!this.vars.caster.custom.focusFire) this.vars.caster.custom.focusFire = resourceChange(this.vars.caster, this.vars.cost, false);
+                            if (!this.vars.caster.custom.dualWield && resourceChange(this.vars.caster, this.vars.cost, false)) this.vars.caster.custom.dualWield = 1;
+                            if (!this.vars.caster.custom.snipe && resourceChange(this.vars.caster, this.vars.cost, false)) this.vars.caster.custom.snipe = 1;
+                            if (!this.vars.caster.custom.focusFire && resourceChange(this.vars.caster, this.vars.cost, false)) this.vars.caster.custom.focusFire = 1;
                         }
                     }
                 );

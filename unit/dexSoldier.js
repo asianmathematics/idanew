@@ -45,7 +45,7 @@ DexSoldier.skills = {
                     { caster: this, target: this, duration: 5, properties: ["physical", "revive"], listeners: { turnStart: true, unitChange: true }, cancelListeners: ['unitChange'], uses: 1 },
                     function() {},
                     function(context) {
-                        if (this.vars.applied && context.unit === this.vars.target && context.type === "downed") {
+                        if (context.unit === this.vars.target && context.type === "downed") {
                             heal(this.vars.caster, [this.vars.target], [3]);
                             this.vars.uses--;
                             this.cancel(true);
@@ -248,7 +248,7 @@ DexSoldier.skills = {
                 new Modifier("But It Refused", `Revives`,
                     { caster: this, target: this, properties: ["physical", "stamina", "revive"], listeners: { unitChange: true }, cancelListeners: ['unitChange'], cost: this.skills.passive.cost, passive: true },
                     function() {},
-                    function(context) { if (this.vars.applied && context.unit === this.vars.target && context.type === "downed" && resourceChange(this.vars.caster, this.vars.cost, false)) { heal(this.vars.caster, [this.vars.target], [1]) } }
+                    function(context) { if (context.unit === this.vars.target && context.type === "downed" && resourceChange(this.vars.caster, this.vars.cost, false)) { heal(this.vars.caster, [this.vars.target], [1]) } }
                 );
             }
         },

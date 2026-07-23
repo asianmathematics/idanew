@@ -1,7 +1,7 @@
 import { unitFilter, Modifier, handleEvent, removeModifier, basicModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentUnit, currentAction, elements, eventState } from '../combatDictionary.js';
 import { Unit, allUnits } from './unit.js';
 
-export const FourArcher = new Unit("4 (Archer)", [800, 24, 16, 50, 80, 70, 140, 85, 160, "back", 110, 40, 4, 160, 32]);
+export const FourArcher = new Unit("4 (Archer)", [800, 36, 16, 50, 80, 70, 140, 85, 160, "back", 110, 40, 4, 160, 32]);
 
 FourArcher.description = "3-star mystic backline unit with high crit/debuff resist but low in everything else, capable of manipulating RNG to buff self and debuff enemies."
 
@@ -351,9 +351,9 @@ FourArcher.skills = {
                     { caster: this, target: this, properties: ["mystic", "mana", "attack", "multi-target"], listeners: { singleDamage: true }, cancelListeners: ['singleDamage'], reduction: this.skills.passive.reduction, passive: true, attacking: 0},
                     function() {},
                     function(context) {
+                        if (this.vars.attacking) return;
                         let list;
-                        if (this.vars.attacking || !(list = unitFilter(this.team === "player" ? "enemy" : "player", "front", false).filter(u => u !== context.defenders[0])).length) return;
-                        if (context.attacker === this.vars.caster && context.damageSingle > 0 && resistDebuff(this.vars.caster, context.defenders)[this.vars.attacking++] > 33) attack(this.vars.caster, randTarget(list, 3), 1, context.calcMods);
+                        if (context.attacker === this.vars.caster && context.damageSingle > 0 && (list = unitFilter(this.team === "player" ? "enemy" : "player", "front", false).filter(u => u !== context.defender)).length && resistDebuff(this.vars.caster, [context.defender])[this.vars.attacking++] > 33) attack(this.vars.caster, randTarget(list, 3), 1, context.calcMods);
                         this.vars.attacking = 0;
                     }
                 )

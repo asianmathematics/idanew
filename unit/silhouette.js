@@ -57,8 +57,18 @@ Silhouette.skills = {
             description: "Summon shadow clone of a ally unit in the same position with 1 star stats for 6 turns, only one of the same clone can be summoned at a time",
             target() { this.team === "player" ? selectTarget(this.skills.special, [1, true, unitFilter("player", this.position)]) : this.skills.special.code.call(this, randTarget(unitFilter("enemy", this.position))) },
             code(target) {
-                if (!target) return logAction("No shadow clones can be summoned!", "warning") && resourceChange(this, this.skills.special);
-                if (allUnits.find(obj => obj.custom?.summoner === this && obj.name === target[0].name + " (Shadow)")) return logAction("A shadow clone of this unit is already summoned!", "warning") && resourceChange(this, this.skills.special);
+                if (!target) {
+                    logAction("No shadow clones can be summoned!", "warning");
+                    resourceChange(this, this.skills.special.cost);
+                    this.previousAction[1] = false;
+                    return;
+                }
+                if (allUnits.find(obj => obj.custom?.summoner === this && obj.name === target[0].name + " (Shadow)")) {
+                    logAction("A shadow clone of this unit is already summoned!", "warning");
+                    resourceChange(this, this.skills.special.cost);
+                    this.previousAction[1] = false;
+                    return;
+                }
                 logAction(`${this.name} creates a shadow clone of ${target[0].name}!`, "buff");
                 const clone = createUnit({ ...target[0], name: target[0].name + " (Shadow)" }, this.team);
                 clone.skills = { ...target.skills };
@@ -71,13 +81,13 @@ Silhouette.skills = {
                     { caster: this, target: clone, duration: 6, properties: ["mystic", "summon"], listeners: { turnEnd: true, unitChange: true }, perm: true },
                     function() {},
                     function(context) {
-                        if (context.type === "death") return !(this.vars.perm = false);
-                        if (context.event = "turnEnd" && context.unit === this.vars.target) this.vars.duration--;
-                        if (this.vars.duration <= 0) {
+                        if (context.type === "death") return !(this.vars.perm = this.vars.listeners.unitChange = false);
+                        if (context.event === "turnEnd" && context.unit === this.vars.target) this.vars.duration--;
+                        if (this.vars.duration <= 0 && this.vars.perm) {
+                            this.vars.perm = false;
                             allUnits.splice(allUnits.indexOf(this.vars.target), 1);
                             if (eventState.unitChange.length) handleEvent('unitChange', { type: 'unsummon', unit: this.vars.target })
                             for (let i = modifiers.length - 1; i >= 0; i--) if (modifiers[i].vars.caster === this.vars.target) removeModifier(modifiers[i]);
-                            this.vars.perm = false;
                             return true;
                         }
                     },
@@ -100,19 +110,17 @@ Silhouette.skills = {
                         this.changeTarget([], allUnits.filter(u => u.custom?.summoner === this.vars.caster));
                     },
                     function(context) {
-                        if (this.vars.applied) {
-                            if (context.type === 'summon' && context.unit.custom?.summoner === this.vars.caster) this.changeTarget([], [context.unit])
-                            else if (context.type === 'unsummon' && context.unit.custom?.summoner === this.vars.caster) this.changeTarget([context.unit]);
-                            else if (context.event === 'modifierStart' && context.modifier.name === "Fear of the Dark" && context.modifier.vars.target === this.vars.caster) for (const target of this.vars.targets) new Modifier("Fear of the Dark copy", context.modifier.description, { ...context.modifier.vars, target, listeners: undefined, cancelListeners: undefined}, context.modifier.init, context.modifier.onTurn, context.modifier.cancel, context.modifier.changeTarget);
-                            else if (context.event === 'modifierEnd' && context.modifier.name === "Fear of the Dark" && context.modifier.vars.target === this.vars.caster && this.vars.child) for (const mod of this.vars.child.filter(m => m.name === "Fear of the Dark copy")) removeModifier(mod);
-                        }
+                        if (context.type === 'summon' && context.unit.custom?.summoner === this.vars.caster) this.changeTarget([], [context.unit])
+                        else if (context.type === 'unsummon' && context.unit.custom?.summoner === this.vars.caster) this.changeTarget([context.unit]);
+                        else if (context.event === 'modifierStart' && context.modifier.name === "Fear of the Dark" && context.modifier.vars.target === this.vars.caster) for (const target of this.vars.targets) new Modifier("Fear of the Dark copy", context.modifier.description, { ...context.modifier.vars, target, listeners: undefined, cancelListeners: undefined}, context.modifier.init, context.modifier.onTurn, context.modifier.cancel, context.modifier.changeTarget);
+                        else if (context.event === 'modifierEnd' && context.modifier.name === "Fear of the Dark" && context.modifier.vars.target === this.vars.caster && this.vars.child) for (const mod of this.vars.child.filter(m => m.name === "Fear of the Dark copy")) removeModifier(mod);
                         if (context.event === 'turnStart' && context.unit === this.vars.caster) this.vars.duration--;
                         return this.vars.duration <= 0;
                     },
                     function(cancel, temp) {
                         if (!temp) {
                             if (this.vars.cancel && this.vars.applied) {
-                                for (let i = this.vars.child.length; i >= 0; i--) removeModifier(this.vars.child[i]);
+                                if (this.vars.child) [... this.vars.child].forEach(m => removeModifier(m));
                                 this.vars.applied = false;
                                 for (const listener of this.vars.cancelListeners) {
                                     this.vars.listeners[listener] = false;
@@ -225,7 +233,12 @@ Silhouette.skills = {
             cost: { mana: 20 },
             description: "Summons a 1 star shadow for 4 turns, can't have more shadows than non-summon allies in the same position",
             code() {
-                if (unitFilter(this.team, this.position).filter(obj => !obj.custom?.summoner).length <= allUnits.filter(obj => obj.custom?.summoner === this && obj.position === this.position).length) return logAction("Cannot summon more shadows than allies in the same position!", "warning");
+                if (unitFilter(this.team, this.position).filter(obj => !obj.custom?.summoner).length <= allUnits.filter(obj => obj.custom?.summoner === this && obj.position === this.position).length) {
+                    logAction("Cannot summon more shadows than allies in the same position!", "warning");
+                    resourceChange(this, this.skills.basic.cost);
+                    this.previousAction[1] = false;
+                    return;
+                }
                 logAction(`${this.name} creates a shadow.`, "action");
                 const clone = createUnit(new Unit("Shadow", [290, 13, 11, 49, 66, 60, 60, 30, 24, this.position, 16, 10, 1, 40, 8]), this.team);
                 clone.skills = shadowSkills;
@@ -235,13 +248,13 @@ Silhouette.skills = {
                     { caster: this, target: clone, duration: 4, properties: ["mystic", "summon"], listeners: { turnEnd: true, unitChange: true }, perm: true },
                     function() {},
                     function(context) {
-                        if (context.type === "death") return !(this.vars.perm = false);
-                        if (context.event = "turnEnd" && context.unit === this.vars.target) this.vars.duration--;
-                        if (this.vars.duration <= 0) {
+                        if (context.type === "death") return !(this.vars.perm = this.vars.listeners.unitChange = false);;
+                        if (context.event === "turnEnd" && context.unit === this.vars.target) this.vars.duration--;
+                        if (this.vars.duration <= 0 && this.vars.perm) {
+                            this.vars.perm = false;
                             allUnits.splice(allUnits.indexOf(this.vars.target), 1);
                             if (eventState.unitChange.length) handleEvent('unitChange', { type: 'unsummon', unit: this.vars.target})
                             for (let i = modifiers.length - 1; i >= 0; i--) if (modifiers[i].vars.caster === this.vars.target) removeModifier(modifiers[i]);
-                            this.vars.perm = false;
                             return true;
                         }
                     },

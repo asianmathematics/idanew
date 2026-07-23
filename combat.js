@@ -216,7 +216,9 @@ function updateInspectorUnits() {
             <div class="inspector-mini-bars">
                 <div>HP: ${Math.round((unit.hp / unit.base.hp) * 100)}%</div>
                 <div>STA: ${Math.round((unit.stamina / unit.base.stamina) * 100)}%</div>
-                <div>Timer: ${Math.max(0, Math.round(100 - (unit.timer / 10)))}%</div>
+                ${unit.base.mana ? `<div>STA: ${Math.round((unit.mana / unit.base.mana) * 100)}%</div>` : ''}
+                ${unit.base.energy ? `<div>STA: ${Math.round((unit.energy / unit.base.energy) * 100)}%</div>` : ''}
+                <div>Timer: ${Math.round(100 - (unit.timer / 10))}%</div>
                 <div>Mode: ${unit.autoBehavior || 'basic'}</div>
             </div>
             <div class="inspector-unit-details">
@@ -449,9 +451,7 @@ function executeBoth(unit) {
         if (count) cost[res] = (cost[res] || 0) + count;
     }
     if (JSON.stringify(cost) === '{}' || resourceChange(unit, cost, false)) {
-        if (unit.skills.basic?.properties?.includes('physical') || unit.skills.secondary?.properties?.includes('physical')) unit.previousAction[0] = true;
-        if (unit.skills.basic?.properties?.includes('mystic') || unit.skills.secondary?.properties?.includes('mystic')) unit.previousAction[1] = true;
-        if (unit.skills.basic?.properties?.includes('techno') || unit.skills.secondary?.properties?.includes('techno')) unit.previousAction[2] = true;
+        unit.previousAction = [true, true, true];
         currentAction.push(unit.skills.basic);
         unit.skills.basic.code.call(unit);
         currentAction.pop();

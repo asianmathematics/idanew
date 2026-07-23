@@ -99,7 +99,7 @@ function handleEvent(eventType, context) {
             else if (eventList[i].onTurn(context)) removeModifier(eventList[i]);
         } catch (e) {
             console.error(`Error in ${eventType} listener (${eventList[i]?.name}):`, e);
-            console.log(`currentAction stack: ${currentAction.join(', ')}`);
+            console.log(`currentAction stack: ${currentAction.join(', ')}\ncurrentUnit stack: ${currentUnit.join(', ')}`);
             try {
                 removeModifier(eventList[i]);
                 logAction(`An error occurred with a modifier.`, "error");
@@ -158,7 +158,7 @@ function basicModifier(name, description, vari) {
 new Modifier("Reapply Passive", "Reapplies passive modifiers on unit revive",
     { caster: system, target: system, properties: ["system"], listeners: { unitChange: true }, perm: true },
     function() {},
-    function(context) { if (context.type === "revive") for (const mod of modifiers.filter(m => m.vars.caster === context.unit && m.vars.passive)) mod.cancel(false) },
+    function(context) { if (context.type === "revive") for (const mod of modifiers.filter(m => m.vars.caster === context.unit && m.vars.passive && (m.vars.focus || m.vars.penalty))) mod.cancel(false) },
     function() {},
     function() {}
 )
@@ -578,7 +578,7 @@ function resourceChange(unit, resources, add = true, drain = false) {
     for (const resource in context.resources) {
         let change = (context[resource]?.nil || context.all?.nil) ? 0 : (resources[resource] + (context[resource]?.bonus || 0) + (context.all?.bonus || 0))*(context[resource]?.mult || 1)*(context.all?.mult || 1)/(context[resource]?.div || 1)/(context.all?.div || 1) + (context[resource]?.flatBonus || 0) + (context.all?.flatBonus || 0);
         context.resources[resource] = add ? change : -change;
-        if (!drain && -context.resources[resource] > unit[resource]) return (currentAction.length === 1 && currentUnit.at(-1).team === 'player') ? !logAction(`Not enough ${resource}!`, "warning") : false;
+        if (!drain && -context.resources[resource] > unit[resource]) return (currentAction.length === 1 && currentUnit.at(-1).team === 'player') ? logAction(`Not enough ${resource}!`, "warning") && false : false;
     }
     for (const resource in context.resources) unit[resource] = Math.ceil(Math.max(0, Math.min(unit[resource] + context.resources[resource], unit.base[resource])));
     return true;
