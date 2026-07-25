@@ -182,11 +182,11 @@ DexSoldier.skills = {
             name: "Quake Hammer",
             properties: ["physical", "stamina", "attack", "aoe", "multi-target"],
             cost: { stamina: 20 },
-            description: "Makes an AOE attack on enemy frontline with half attack and focus",
+            description: "Makes an AOE attack on enemy frontline reduced attack and focus",
             code() {
                 let targets = unitFilter(this.team === 'player' ? 'enemy' : 'player', 'front', false);
                 if (eventState.targets.length) handleEvent('targets', { selectedTargets: targets, count: targets.length });
-                attack(this, targets, 1, { attacker: { attack: { div: 2 }, focus: { div: 2 } } })
+                attack(this, targets, 1, { attacker: { attack: { bonus: -10 }, focus: { bonus: -20 } } })
             }
         }
     ],

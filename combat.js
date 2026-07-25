@@ -116,6 +116,11 @@ function renderUnitCard(unit, isEnemy = false, inFrontline = false) {
         <div class="unit-name">${unit.name}</div>
         ${renderUnitStats(unit, isEnemy)}
     `;
+
+    if (unit.team === 'player') card.addEventListener('click', () => {
+        unit.isExpanded = !unit.isExpanded;
+        updateInspectorUnits()
+    });
     
     return card;
 }
@@ -204,6 +209,7 @@ function updateInspectorUnits() {
         card.className = 'inspector-unit-card';
         card.dataset.unitName = unit.name;
         if (unit.isExpanded) card.classList.add('expanded');
+        else { card.classList.remove('expanded')}
         
         const isDefeated = unit.hp <= 0;
         const specialStatus = unit.specialReady ? 'READY' : (isDefeated ? 'DEFEATED' : 'Charging...');
@@ -215,9 +221,9 @@ function updateInspectorUnits() {
             </div>
             <div class="inspector-mini-bars">
                 <div>HP: ${Math.round((unit.hp / unit.base.hp) * 100)}%</div>
-                <div>STA: ${Math.round((unit.stamina / unit.base.stamina) * 100)}%</div>
-                ${unit.base.mana ? `<div>STA: ${Math.round((unit.mana / unit.base.mana) * 100)}%</div>` : ''}
-                ${unit.base.energy ? `<div>STA: ${Math.round((unit.energy / unit.base.energy) * 100)}%</div>` : ''}
+                <div>Stamina: ${Math.round((unit.stamina / unit.base.stamina) * 100)}%</div>
+                ${unit.base.mana ? `<div>Mana: ${Math.round((unit.mana / unit.base.mana) * 100)}%</div>` : ''}
+                ${unit.base.energy ? `<div>Energy: ${Math.round((unit.energy / unit.base.energy) * 100)}%</div>` : ''}
                 <div>Timer: ${Math.round(100 - (unit.timer / 10))}%</div>
                 <div>Mode: ${unit.autoBehavior || 'basic'}</div>
             </div>
@@ -273,9 +279,36 @@ function renderUnitDetails(unit) {
     
     // Skills List
     html += `<div style="margin-top:10px; font-size:11px; color:#888;">EQUIPPED SKILLS:</div>`;
-    if (unit.skills) { Object.values(unit.skills).forEach(skill => { html += `<div style="font-size:11px; color:#00aaff; margin:3px 0;">• ${skill.name}</div>` }) }
+    if (unit.skills) { Object.entries(unit.skills).forEach(([category, skill]) => { html += `<br><div style="font-size:11px; color:#00aaff; margin:3px 0;" class="skillName">• ${skill.name}<span class="skillDesc">${alterDesc(skill, category)}</span></div>` }) }
     else html += `<div style="font-size:11px; color:#666;">No skills equipped</div>`;
     return html;
+}
+
+function alterDesc(skill, category) {
+    if (!skill.description) return '';
+    let desc = '';
+    if (skill.reduction) {
+        desc += "Reduce ";
+        for (const stat in skill.reduction) desc += ['hp', 'stamina', 'mana', 'energy'].includes(stat) ? `max ${stat === 'hp' ? 'HP' : stat.charAt(0).toUpperCase() + stat.slice(1)} by ${skill.reduction[stat]}, ` : `base ${stat.charAt(0).toUpperCase() + stat.slice(1)} by ${skill.reduction[stat]}, `;
+        desc = desc.slice(0, -2) + '<br>';
+    }
+    if (skill.cost) {
+        if (skill.cost.position) desc += `${skill.cost.position.charAt(0).toUpperCase() + skill.cost.position.slice(1)}line only, `;
+        const list = Object.keys(skill.cost).filter(s => s !== 'position');
+        if (list.length) {
+            desc += 'Cost ';
+            for (const stat of list) desc += `${skill.cost[stat]} ${stat.charAt(0).toUpperCase() + stat.slice(1)}, `;
+        }
+        desc = desc.slice(0, -2) + '<br>';
+    }
+    const block = [];
+    if (['special', 'basic', 'secondary'].includes(category)) for (const [res, attrib] of [['stamina', 'physical'], ['mana', 'mystic'], ['energy', 'techno']]) if (!(skill.cost && Object.keys(skill.cost).includes(res)) && skill.properties.includes(attrib)) block.push(res);
+    if (block.length) {
+        desc += "Blocks next turn's regeneration of ";
+        for (const stat of block) desc += `${stat.charAt(0).toUpperCase() + stat.slice(1)}, `;
+        desc = desc.slice(0, -2) + '<br>';
+    }
+    return desc + skill.description.replace(/\n/g, '<br>');
 }
 
 // ============================================
@@ -407,9 +440,7 @@ export async function combatTick() {
                     if (eventState.actionStart.length) handleEvent('actionStart', {unit, action: 'skip'});
                     logAction(`${turn.name} is resting!`, 'info');
                     regenerateResources(turn);
-                    // FIX: Advance the turn even if resting
                     if (eventState.turnEnd.length) handleEvent('turnEnd', { unit: turn });
-                    turn.timer += 1000;
                     setTimeout(combatTick, getDelay(500));
                     turn.specialReady = true;
                 } else if (behavior === 'both') executeBoth(turn);
@@ -532,7 +563,7 @@ function waveCalc(units, mult) {
         }
     }*/
     let playerPoints = new Map([
-        [DexSoldier, 81/16], [FourArcher, 81/16], [Mannequin, 81/16], [Silhouette, 81/16]
+       [DexSoldier, 81/16], [FourArcher, 81/16], [Mannequin, 81/16], [Silhouette, 81/16]
     ]);
     enemyPoints = new Map([[enemy, 81/16]])
     let enemies = [];

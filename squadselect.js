@@ -22,9 +22,8 @@ const categoryColors = {
 function initUnitSelection() {
     const roster = document.getElementById('unit-roster');
     const selectedContainer = document.getElementById('selected-units');
-    const countDisplay = selectedContainer.querySelector('h4');
     roster.innerHTML = '';
-    selectedContainer.innerHTML = '<h4>Selected Units (max of 6, 4 recommended)</h4>';
+    selectedContainer.innerHTML = '<h4>Selected Units (0 front, 0 back)</h4>';
     selectedUnits = [];
     availableUnits.forEach(unit => {
         const card = document.createElement('div');
@@ -50,7 +49,7 @@ function initUnitSelection() {
                 selectedUnits = selectedUnits.filter(u => u.id !== card.dataset.configId);
                 delete card.dataset.configId; // FIX: Clear ID on deselect so it can be re-selected
             }
-            countDisplay.textContent = `Selected Units (${selectedUnits.length}/6)`;
+            selectedContainer.innerHTML = `<h4>Selected Units (${selectedUnits.filter(u => u.startingPosition === 'front').length} front, ${selectedUnits.filter(u => u.startingPosition === 'back').length} back)</h4>`;
             renderSelectedUnits();
         });
         roster.appendChild(card);
@@ -319,6 +318,9 @@ function renderSelectedUnits() {
                             return !reqPos || reqPos === newPos;
                         });
                         renderSelectedUnits();
+                        const selectedContainer = document.getElementById('selected-units');
+                        const countDisplay = selectedContainer.querySelector('h4');
+                        countDisplay.innerHTML = `Selected Units (${selectedUnits.filter(u => u.startingPosition === 'front').length} front, ${selectedUnits.filter(u => u.startingPosition === 'back').length} back)`;
                     }
                 });
             });

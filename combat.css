@@ -167,6 +167,7 @@ h1, h2, h3, h4 {
 .unit.player-unit {
     border-color: #00aaff;
     box-shadow: inset 0 0 12px rgba(0,170,255,0.15);
+    cursor: pointer;
 }
 .unit.enemy-unit {
     border-color: #ff0055;
@@ -299,6 +300,7 @@ h1, h2, h3, h4 {
     border: 1px solid #00ff88;
     box-shadow: 0 0 15px rgba(0,255,136,0.2);
     margin-bottom: 15px;
+    overflow: visible;
 }
 
 .inspector-tabs {
@@ -340,6 +342,7 @@ h1, h2, h3, h4 {
     padding: 15px;
     overflow-y: auto;
     display: none;
+    overflow: visible;
 }
 .tab-content.active { display: block; }
 
@@ -404,6 +407,8 @@ h1, h2, h3, h4 {
     padding-top: 10px;
     border-top: 1px dashed #333;
     display: none;
+    position: relative;
+    overflow: visible;
 }
 .inspector-unit-card.expanded .inspector-unit-details { display: block; }
 
@@ -465,6 +470,7 @@ h1, h2, h3, h4 {
     max-height: 300px;
     overflow-y: auto;
 }
+
 .modifier-list li {
     margin-bottom: 5px;
     padding: 5px;
@@ -506,6 +512,11 @@ h1, h2, h3, h4 {
     font-family: 'Courier Prime', monospace;
     font-size: 14px;
     border: 1px solid #00ff88;
+}
+.modifier-list li:first-child .modifier-name:hover::after {
+    overflow: visible;
+    top: 100%;
+    bottom: auto;
 }
 .modifier-targets, .modifier-duration {
     font-size: 0.85em;
@@ -633,6 +644,7 @@ h1, h2, h3, h4 {
     color: #00ff88;
     max-height: 400px;
     overflow-y: auto;
+    gap: 5px;
 }
 .info-display h4 {
     color: #00aaff;
@@ -679,6 +691,54 @@ h1, h2, h3, h4 {
     box-shadow: 0 0 10px rgba(255,0,85,0.5);
 }
 .selected-units .unit-card { width: 140px; opacity: 0.95; }
+
+.skillName {
+    border-bottom: 1px dashed #00aaff;
+    color: #00aaff;
+    cursor: help;
+    position: relative;
+    display: inline-block;
+    transition: color 0.2s ease;
+}
+
+.skillName:hover {
+    color: #00ff88;
+    text-shadow: 0 0 5px rgba(0,255,136,0.5);
+}
+
+.skillDesc {
+    visibility: hidden;
+    opacity: 0;
+    position: absolute;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    
+    /* Terminal Visuals */
+    width: max-content;
+    max-width: 280px;
+    padding: 8px 12px;
+    background-color: #0a0a0a;
+    color: #00ff88;
+    font-family: 'Courier Prime', monospace;
+    font-size: 13px;
+    line-height: 1.4;
+    
+    /* Sharp CRT Borders & Glow */
+    border: 1px solid #00ff88;
+    border-radius: 0;
+    box-shadow: 0 0 12px rgba(0,255,136,0.3), inset 0 0 6px rgba(0,255,136,0.1);
+    
+    white-space: normal;
+    pointer-events: none;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+.skillName:hover .skillDesc {
+    visibility: visible;
+    opacity: 1;
+}
 
 /* ============================================
    ACTION BUTTONS (Target selection modal)

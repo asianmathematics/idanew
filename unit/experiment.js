@@ -24,7 +24,8 @@ experiment.skills = {
                     allUnits.splice(allUnits.indexOf(target[0]), 1);
                     if (eventState.unitChange.length) handleEvent('unitChange', { type: 'death', unit: target[0] });
                     for (let i = modifiers.length - 1; i >= 0; i--) if (modifiers[i].vars.caster === target[0]) removeModifier(modifiers[i]);
-                }
+                    logAction(`${this.name} consumes ${target[0].name}!`);
+                } else logAction(`${this.name} fails to consume ${target[0].name}!`, "miss");
             }
         },
         {

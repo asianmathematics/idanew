@@ -81,8 +81,10 @@ Silhouette.skills = {
                     { caster: this, target: clone, duration: 6, properties: ["mystic", "summon"], listeners: { turnEnd: true, unitChange: true }, perm: true },
                     function() {},
                     function(context) {
-                        if (context.type === "death") return !(this.vars.perm = this.vars.listeners.unitChange = false);
-                        if (context.event === "turnEnd" && context.unit === this.vars.target) this.vars.duration--;
+                        if (context.unit === this.vars.target) {
+                            if (context.type === "death") return !(this.vars.perm = this.vars.listeners.unitChange = false);
+                            if (context.event === "turnEnd") this.vars.duration--;
+                        }
                         if (this.vars.duration <= 0 && this.vars.perm) {
                             this.vars.perm = false;
                             allUnits.splice(allUnits.indexOf(this.vars.target), 1);
@@ -243,13 +245,15 @@ Silhouette.skills = {
                 const clone = createUnit(new Unit("Shadow", [290, 13, 11, 49, 66, 60, 60, 30, 24, this.position, 16, 10, 1, 40, 8]), this.team);
                 clone.skills = shadowSkills;
                 clone.custom = { ...clone.custom, summoner: this };
-                if (eventState.unitChange.length) handleEvent('unitChange', { type: 'summon', unit: clone})
+                if (eventState.unitChange.length) handleEvent('unitChange', { type: 'summon', unit: clone});
                 new Modifier("Summon Shadow", "Summon shadow clone of a ally unit in the same position with 1 star stats",
                     { caster: this, target: clone, duration: 4, properties: ["mystic", "summon"], listeners: { turnEnd: true, unitChange: true }, perm: true },
                     function() {},
                     function(context) {
-                        if (context.type === "death") return !(this.vars.perm = this.vars.listeners.unitChange = false);;
-                        if (context.event === "turnEnd" && context.unit === this.vars.target) this.vars.duration--;
+                        if (context.unit === this.vars.target) {
+                            if (context.type === "death") return !(this.vars.perm = this.vars.listeners.unitChange = false);
+                            if (context.event === "turnEnd") this.vars.duration--;
+                        }
                         if (this.vars.duration <= 0 && this.vars.perm) {
                             this.vars.perm = false;
                             allUnits.splice(allUnits.indexOf(this.vars.target), 1);
@@ -583,10 +587,7 @@ const shadowSkills = {
                 clone.skills = this.skills;
                 clone.custom = { ...clone.custom, summoner: this};
                 if (eventState.unitChange.length) handleEvent('unitChange', { type: 'summon', unit: clone});
-            } else {
-                logAction(`${this.name} fails to proliferate!`, "miss");
-                resourceChange(this, this.skills.special);
-            }
+            } else logAction(`${this.name} fails to proliferate!`, "miss");
         }
     },
     basic: {
@@ -604,9 +605,9 @@ const shadowSkills = {
                 { caster: this, target: this, properties: ['mystic', 'debuff'], listeners: { singleDamage: true }, cancelListeners: ['singleDamage'], passive: true },
                 function() {},
                 function(context) {
-                    if (context.attacker = this.vars.caster && context.damageSingle > 0) {
+                    if (context.attacker === this.vars.caster && context.damageSingle > 0) {
                         const will = resistDebuff(this.vars.caster, [context.defender]);
-                        if (will >= 2) basicModifier("Strength Drain debuff", "Reduce target attack until caster is out of combat", { caster: this.vars.caster, target: context.defender, properties: ['mystic', 'debuff'], stats: { attack: -(will = 100 ? 6 : Math.ceil(will/25)) } });
+                        if (will >= 2) basicModifier("Strength Drain debuff", "Reduce target attack until caster is out of combat", { caster: this.vars.caster, target: context.defender, properties: ['mystic', 'debuff'], stats: { attack: -(will === 100 ? 6 : Math.ceil(will/25)) } });
                     }
                 }
             )
