@@ -32,22 +32,22 @@ experiment.skills = {
             name: "Imperfect Abomination",
             properties: ["physical", "stamina", "buff", "penalty"],
             cost: { stamina: 20 },
-            description: "Increase attack/focus/presence and decreased defense/accuracy/evasion for 5 turns",
+            description: "Increase attack/focus/presence and decreased defense/accuracy/evasion for 4 turns",
             code() {
                 logAction(`${this.name} doesn't let the past take control!`, "buff");
-                basicModifier("Imperfect Abomination buff", "Attack, focus, and presence increase", { caster: this, target: this, duration: 6, properties: ["physical", "buff"], stats: { attack: 16, focus: 30, presence: 40 }, listeners: { turnEnd: true } });
-                basicModifier("Imperfect Abomination penalty", "Defense, accuracy, and evasion decrease", { caster: this, target: this, duration: 6, properties: ["physical", "penalty"], stats: { defense: -5, accuracy: -20, evasion: -10 }, listeners: { turnEnd: true }, penalty: true });
+                basicModifier("Imperfect Abomination buff", "Attack, focus, and presence increase", { caster: this, target: this, duration: 5, properties: ["physical", "buff"], stats: { attack: 16, focus: 30, presence: 40 }, listeners: { turnEnd: true } });
+                basicModifier("Imperfect Abomination penalty", "Defense, accuracy, and evasion decrease", { caster: this, target: this, duration: 5, properties: ["physical", "penalty"], stats: { defense: -5, accuracy: -20, evasion: -10 }, listeners: { turnEnd: true }, penalty: true });
             }
         },
         {
             name: "Forced Mercinary",
             properties: ["physical", "stamina", "buff", "penalty"],
             cost: { stamina: 20 },
-            description: "Increase attack/accuracy/focus and decreased evasion/resist/presence for 5 turns",
+            description: "Increase attack/accuracy/focus and decreased evasion/resist/presence for 4 turns",
             code() {
                 logAction(`${this.name} doesn't let the past take control!`, "buff");
-                basicModifier("Forced Mercinary buff", "Attack, accuracy, and focus increase", { caster: this, target: this, duration: 6, properties: ["physical", "buff"], stats: { attack: 8, accuracy: 20, focus: 20 }, listeners: { turnEnd: true } });
-                basicModifier("Forced Mercinary penalty", "Evasion, resist, and presence decrease", { caster: this, target: this, duration: 6, properties: ["physical", "penalty"], stats: { evasion: -10, resist: -15, presence: -40 }, listeners: { turnEnd: true }, penalty: true });
+                basicModifier("Forced Mercinary buff", "Attack, accuracy, and focus increase", { caster: this, target: this, duration: 5, properties: ["physical", "buff"], stats: { attack: 8, accuracy: 20, focus: 20 }, listeners: { turnEnd: true } });
+                basicModifier("Forced Mercinary penalty", "Evasion, resist, and presence decrease", { caster: this, target: this, duration: 5, properties: ["physical", "penalty"], stats: { evasion: -10, resist: -15, presence: -40 }, listeners: { turnEnd: true }, penalty: true });
             }
         }
     ],
@@ -176,8 +176,8 @@ experiment.skills = {
             properties: ["physical", "stamina", "buff", "penalty"],
             description: "Increase focus/presence and decreased accuracy",
             code() {
-                basicModifier("Imperfect Abomination buff", "Focus, and presence increase", { caster: this, target: this, duration: 2, properties: ["physical", "buff"], stats: { focus: 10, presence: 10 }, listeners: { turnEnd: true } });
-                basicModifier("Imperfect Abomination penalty", "Accuracy decrease", { caster: this, target: this, duration: 2, properties: ["physical", "penalty"], stats: { accuracy: -10 }, listeners: { turnEnd: true }, penalty: true });
+                basicModifier("Imperfect Abomination buff", "Focus, and presence increase", { caster: this, target: this, duration: 2, properties: ["physical", "buff"], stats: { focus: 10, presence: 10 }, listeners: { turnEnd: true }, passive: true });
+                basicModifier("Imperfect Abomination penalty", "Accuracy decrease", { caster: this, target: this, duration: 2, properties: ["physical", "penalty"], stats: { accuracy: -10 }, listeners: { turnEnd: true }, passive: true, penalty: true });
             }
         },
         {
@@ -185,8 +185,8 @@ experiment.skills = {
             properties: ["physical", "stamina", "buff", "penalty"],
             description: "Increase accuracy/focus and decreased resist/presence",
             code() {
-                basicModifier("Forced Mercinary buff", "Accuracy, and focus increase", { caster: this, target: this, duration: 2, properties: ["physical", "buff"], stats: { accuracy: 5, focus: 5 }, listeners: { turnEnd: true } });
-                basicModifier("Forced Mercinary penalty", "Resist, and presence decrease", { caster: this, target: this, duration: 2, properties: ["physical", "penalty"], stats: { resist: -5, presence: -20 }, listeners: { turnEnd: true }, penalty: true });
+                basicModifier("Forced Mercinary buff", "Accuracy, and focus increase", { caster: this, target: this, duration: 2, properties: ["physical", "buff"], stats: { accuracy: 5, focus: 5 }, listeners: { turnEnd: true }, passive: true});
+                basicModifier("Forced Mercinary penalty", "Resist, and presence decrease", { caster: this, target: this, duration: 2, properties: ["physical", "penalty"], stats: { resist: -5, presence: -20 }, listeners: { turnEnd: true }, passive: true, penalty: true });
             }
         }
     ]

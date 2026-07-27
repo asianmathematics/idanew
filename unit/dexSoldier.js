@@ -121,7 +121,7 @@ DexSoldier.skills = {
         },
         {
             name: "Determination",
-            properties: ["physical","heal"],
+            properties: ["physical", "heal"],
             description: `Moderately heals (~10% max HP) at start of turn for next 3 turns`,
             code() {
                 logAction(`${this.name} holds onto hope.`, "buff")

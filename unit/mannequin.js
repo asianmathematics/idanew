@@ -121,7 +121,7 @@ Mannequin.skills = {
                     if (mod) mod.vars.duration = 3;
                 } else {
                     basicModifier("A Wish to be an Artificial buff", "Accuracy, focus, and speed increase", { caster: this, target: this, duration: 3, properties: ["physical", "buff"], stats: { accuracy: 50, focus: 25, speed: 40 }, listeners: { turnEnd: true }, focus: true });
-                basicModifier("A Wish to be an Artificial penalty", "Resist and presence decrease", { caster: this, target: this, duration: 3, properties: ["physical", "penalty"], stats: { resist: -20, presence: -30 }, listeners: { turnEnd: true }, focus: true, penalty: true });
+                    basicModifier("A Wish to be an Artificial penalty", "Resist and presence decrease", { caster: this, target: this, duration: 3, properties: ["physical", "penalty"], stats: { resist: -20, presence: -30 }, listeners: { turnEnd: true }, focus: true, penalty: true });
                 }
             }
         },
