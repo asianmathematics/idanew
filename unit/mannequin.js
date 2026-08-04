@@ -14,8 +14,7 @@ Mannequin.skills = {
             cost: { stamina: 20 },
             description: "Increased accuracy/focus/speed and decreased presence & resist for 5 turns",
             code() {
-                logAction(`${this.name} reaches for an ideal!`, "buff");
-                basicModifier("A Wish to be an Artificial buff", "Accuracy, focus, and speed increase", { caster: this, target: this, duration: 6, properties: ["physical", "buff"], stats: { accuracy: 60, focus: 50, speed: 40 }, listeners: { turnEnd: true }, focus: true });
+                basicModifier("A Wish to be an Artificial buff", "Accuracy, focus, and speed increase", { caster: this, target: this, duration: 6, properties: ["physical", "buff"], stats: { accuracy: 60, focus: 50, speed: 25 }, listeners: { turnEnd: true }, focus: true });
                 basicModifier("A Wish to be an Artificial penalty", "Resist and presence decrease", { caster: this, target: this, duration: 6, properties: ["physical", "penalty"], stats: { resist: -25, presence: -35 }, listeners: { turnEnd: true }, focus: true, penalty: true });
             }
         },
@@ -36,9 +35,8 @@ Mannequin.skills = {
             cost: { stamina: 20 },
             description: "Increased attack/accuracy/focus and decreased defense/evasion/resist/presence for 5 turns",
             code() {
-                logAction(`${this.name} doesn't let the past take control!`, "buff");
-                basicModifier("Ex-Revolutionary buff", "Attack, accuracy, and focus increase", { caster: this, target: this, duration: 6, properties: ["physical", "buff"], stats: { attack: 40, accuracy: 40, focus: 30 }, listeners: { turnEnd: true }, focus: true });
-                basicModifier("Ex-Revolutionary penalty", "Defense, evasion, resist, and presence decrease", { caster: this, target: this, duration: 6, properties: ["physical", "penalty"], stats: { defense: -10, evasion: -25, resist: -50, presence: -50 }, listeners: { turnEnd: true }, focus: true, penalty: true });
+                basicModifier("Ex-Revolutionary buff", "Attack, accuracy, and focus increase", { caster: this, target: this, duration: 6, properties: ["physical", "buff"], stats: { attack: 40, accuracy: 80, focus: 60 }, listeners: { turnEnd: true }, focus: true });
+                basicModifier("Ex-Revolutionary penalty", "Defense, evasion, resist, and presence decrease", { caster: this, target: this, duration: 6, properties: ["physical", "penalty"], stats: { defense: -10, evasion: -25, resist: -30, presence: -50 }, listeners: { turnEnd: true }, focus: true, penalty: true });
             }
         },
         {
@@ -112,15 +110,15 @@ Mannequin.skills = {
             properties: ["physical", "buff", "penalty"],
             description: "Increased accuracy & speed and decreased presence & resist for 2 turns. If currently active, refreshes duration and allow stamina regen next turn",
             code() {
-                logAction(`${this.name} acts on a wish!`, "buff");;
                 let mod = modifiers.find(m => m.name.includes("A Wish to be an Artificial") && m.vars.caster === this);
                 if (mod) {
                     this.previousAction[0] = false;
                     mod.vars.duration = 3;
+                    logAction(`${this.name} refreshes ${mod.name}`);
                     mod = modifiers.find(m => m !== mod && m.name.includes("A Wish to be an Artificial") && m.vars.caster === this)
-                    if (mod) mod.vars.duration = 3;
+                    if (mod) mod.vars.duration = 3, logAction(`${this.name} refreshes ${mod.name}`);
                 } else {
-                    basicModifier("A Wish to be an Artificial buff", "Accuracy, focus, and speed increase", { caster: this, target: this, duration: 3, properties: ["physical", "buff"], stats: { accuracy: 50, focus: 25, speed: 40 }, listeners: { turnEnd: true }, focus: true });
+                    basicModifier("A Wish to be an Artificial buff", "Accuracy, focus, and speed increase", { caster: this, target: this, duration: 3, properties: ["physical", "buff"], stats: { accuracy: 50, focus: 25, speed: 20 }, listeners: { turnEnd: true }, focus: true });
                     basicModifier("A Wish to be an Artificial penalty", "Resist and presence decrease", { caster: this, target: this, duration: 3, properties: ["physical", "penalty"], stats: { resist: -20, presence: -30 }, listeners: { turnEnd: true }, focus: true, penalty: true });
                 }
             }
@@ -137,16 +135,16 @@ Mannequin.skills = {
             properties: ["physical", "buff", "penalty"],
             description: "Increased attack & accuracy and decreased evasion/resist/presence for 2 turns. If currently active, refreshes duration and allow stamina regen next turn",
             code() {
-                logAction(`${this.name} reminiscences on the past.`, "buff");
                 let mod = modifiers.find(m => m.name.includes("Ex-Revolutionary") && m.vars.caster === this);
                 if (mod) {
                     this.previousAction[0] = false;
                     mod.vars.duration = 3;
+                    logAction(`${this.name} refreshes ${mod.name}`);
                     mod = modifiers.find(m => m !== mod && m.name.includes("Ex-Revolutionary") && m.vars.caster === this)
-                    if (mod) mod.vars.duration = 3;
+                    if (mod) mod.vars.duration = 3, logAction(`${this.name} refreshes ${mod.name}`);
                 } else {
-                    basicModifier("Ex-Revolutionary buff", "Attack, accuracy, and focus increase", { caster: this, target: this, duration: 3, properties: ["physical", "buff"], stats: { attack: 40, accuracy: 30, focus: 15 }, listeners: { turnEnd: true }, focus: true });
-                    basicModifier("Ex-Revolutionary penalty", "Defense, evasion, resist, and presence decrease", { caster: this, target: this, duration: 3, properties: ["physical", "penalty"], stats: { defense: -10, evasion: -10, resist: -50, presence: -50 }, listeners: { turnEnd: true }, focus: true, penalty: true });
+                    basicModifier("Ex-Revolutionary buff", "Attack, accuracy, and focus increase", { caster: this, target: this, duration: 3, properties: ["physical", "buff"], stats: { attack: 40, accuracy: 60, focus: 30 }, listeners: { turnEnd: true }, focus: true });
+                    basicModifier("Ex-Revolutionary penalty", "Defense, evasion, resist, and presence decrease", { caster: this, target: this, duration: 3, properties: ["physical", "penalty"], stats: { defense: -10, evasion: -10, resist: -30, presence: -50 }, listeners: { turnEnd: true }, focus: true, penalty: true });
                 }
             }
         },
@@ -208,8 +206,7 @@ Mannequin.skills = {
             properties: ["buff", "penalty"],
             description: "Increased accuracy & speed and decreased presence & resist for 1 turn",
             code() {
-                logAction(`${this.name} wishes for the impossible.`, "buff");
-                basicModifier("A Wish to be an Artificial buff", "Accuracy and speed increase", { caster: this, target: this, duration: 2, properties: ["physical", "buff"], stats: { accuracy: 40, speed: 30 }, listeners: { turnEnd: true }, focus: true });
+                basicModifier("A Wish to be an Artificial buff", "Accuracy and speed increase", { caster: this, target: this, duration: 2, properties: ["physical", "buff"], stats: { accuracy: 40, speed: 20 }, listeners: { turnEnd: true }, focus: true });
                 basicModifier("A Wish to be an Artificial penalty", "Resist and presence decrease", { caster: this, target: this, duration: 2, properties: ["physical", "penalty"], stats: { resist: -15, presence: -25 }, listeners: { turnEnd: true }, focus: true, penalty: true });
             }
         },
@@ -224,9 +221,8 @@ Mannequin.skills = {
             properties: ["buff", "penalty"],
             description: "Increased attack & accuracy and decreased evasion/resist/presence for 1 turn",
             code() {
-                logAction(`${this.name} is lost in memories.`, "buff");
-                basicModifier("Ex-Revolutionary buff", "Attack and accuracy increase", { caster: this, target: this, duration: 2, properties: ["physical", "buff"], stats: { attack: 40, accuracy: 20 }, listeners: { turnEnd: true }, focus: true });
-                basicModifier("Ex-Revolutionary penalty", "Evasion, resist, and presence decrease", { caster: this, target: this, duration: 2, properties: ["physical", "penalty"], stats: { evasion: -10, resist: -50, presence: -50 }, listeners: { turnEnd: true }, focus: true, penalty: true });
+                basicModifier("Ex-Revolutionary buff", "Attack and accuracy increase", { caster: this, target: this, duration: 2, properties: ["physical", "buff"], stats: { attack: 30, accuracy: 20 }, listeners: { turnEnd: true }, focus: true });
+                basicModifier("Ex-Revolutionary penalty", "Evasion, resist, and presence decrease", { caster: this, target: this, duration: 2, properties: ["physical", "penalty"], stats: { evasion: -10, resist: -30, presence: -50 }, listeners: { turnEnd: true }, focus: true, penalty: true });
             }
         },
         {

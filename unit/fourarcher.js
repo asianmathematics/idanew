@@ -1,7 +1,7 @@
 import { unitFilter, Modifier, handleEvent, removeModifier, basicModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentUnit, currentAction, elements, eventState } from '../combatDictionary.js';
 import { Unit, allUnits } from './unit.js';
 
-export const FourArcher = new Unit("4 (Archer)", [800, 36, 16, 50, 80, 70, 140, 85, 160, "back", 110, 40, 4, 160, 32]);
+export const FourArcher = new Unit("4 (Archer)", [800, 36, 16, 50, 80, 70, 140, 85, 160, "back", 110, 40, 7, 160, 24]);
 
 FourArcher.description = "3-star mystic backline unit with high crit/debuff resist but low in everything else, capable of manipulating RNG to buff self and debuff enemies."
 
@@ -39,15 +39,14 @@ FourArcher.skills = {
             name: "Lazing Around",
             properties: ["physical", "stamina", "mana", "penalty", "resource"],
             cost: { stamina: 10 },
-            description: "Reduces speed until next turn then regain mana (~35% max mana)",
+            description: "Reduces speed until next turn then regain mana (~55% max mana)",
             code() {
-                logAction(`${this.name} is sitting up!`, "debuff");
                 new Modifier("Lazing Around", "Reduces speed and regen mana",
-                    { caster: this, target: this, duration: 1, properties: ["physical", "mana", "penalty", "resource"], stats: { speed: -10 }, listeners: { turnStart: true }, penalty: true },
-                    function() { resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats)) },
+                    { caster: this, target: this, duration: 1, properties: ["physical", "mana", "penalty", "resource"], stats: { speed: -15 }, listeners: { turnStart: true }, penalty: true },
+                    function() {},
                     function(context) {
                         if (context.unit === this.vars.caster) {
-                            if (this.vars.applied) resourceChange(this.vars.caster, { mana: this.vars.caster.manaRegen * 3.5 });
+                            if (this.vars.applied) resourceChange(this.vars.caster, { mana: this.vars.caster.manaRegen * 5.5 });
                             this.vars.duration--;
                         }
                         return this.vars.duration <= 0;
@@ -87,10 +86,7 @@ FourArcher.skills = {
             properties: ["mystic", "mana", "buff"],
             cost: { mana: 40 },
             description: "Increases all alive allies accuracy/evasion/focus/resist/presence for one of their turns",
-            code() {
-                logAction(`${this.name} shares luck with everyone!`, "buff")
-                for (const unit of unitFilter(this.team, '', false).filter(u => u !== this)) basicModifier("Lucky Aura", "Increases accuracy/evasion/focus/resist/presence", { caster: this, target: unit, duration: 2, properties: ["mystic", "buff"], stats: { accuracy: 25, evasion: 45, focus: 35, resist: 40, presence: 40 }, listeners: { turnStart: true } });
-            }
+            code() { for (const unit of unitFilter(this.team, '', false).filter(u => u !== this)) basicModifier("Lucky Aura", "Increases accuracy/evasion/focus/resist/presence", { caster: this, target: unit, duration: 2, properties: ["mystic", "buff"], stats: { accuracy: 25, evasion: 45, focus: 35, resist: 40, presence: 40 }, listeners: { turnStart: true } }) }
         },
         {
             name: "Luck Arrow",
@@ -142,15 +138,14 @@ FourArcher.skills = {
         {
             name: "Lazing Around",
             properties: ["physical", "mana", "penalty", "resource"],
-            description: "Reduces speed until next turn then regain mana (~30% max mana)",
+            description: "Reduces speed until next turn then regain mana (~45% max mana)",
             code() {
-                logAction(`${this.name} is laying down.`, "debuff");
                 new Modifier("Lazing Around", "Reduces speed and regen mana",
-                    { caster: this, target: this, duration: 1, properties: ["physical", "mana", "penalty", "resource"], stats: { speed: -10 }, listeners: { turnStart: true }, penalty: true },
-                    function() { resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats)) },
+                    { caster: this, target: this, duration: 1, properties: ["physical", "mana", "penalty", "resource"], stats: { speed: -15 }, listeners: { turnStart: true }, penalty: true },
+                    function() {},
                     function(context) {
                         if (context.unit === this.vars.caster) {
-                            if (this.vars.applied) resourceChange(this.vars.caster, { mana: this.vars.caster.manaRegen * 3 });
+                            if (this.vars.applied) resourceChange(this.vars.caster, { mana: this.vars.caster.manaRegen * 4.5 });
                             this.vars.duration--;
                         }
                         return this.vars.duration <= 0;
@@ -162,10 +157,7 @@ FourArcher.skills = {
             name: "Lucky Aura",
             properties: ["physical", "buff"],
             description: "Increases 4 random ally accuracy/evasion/focus/resist/presence for one of their turns",
-            code() {
-                logAction(`${this.name} is randomly spreading luck.`, "buff")
-                for (const target of randTarget(unitFilter(this.team, '', false), 4, true)) basicModifier("Lucky Aura", "Increases accuracy/evasion/focus/resist/presence", { caster: this, target, duration: 2, properties: ["mystic", "mana", "buff"], stats: { accuracy: 25, evasion: 45, focus: 35, resist: 40, presence: 40 }, listeners: { turnStart: true } });
-            }
+            code() { for (const target of randTarget(unitFilter(this.team, '', false), 4, true)) basicModifier("Lucky Aura", "Increases accuracy/evasion/focus/resist/presence", { caster: this, target, duration: 2, properties: ["mystic", "mana", "buff"], stats: { accuracy: 25, evasion: 45, focus: 35, resist: 40, presence: 40 }, listeners: { turnStart: true } }) }
         },
         {
             name: "Luck Arrow",
@@ -212,15 +204,14 @@ FourArcher.skills = {
         {
             name: "Lazing Around",
             properties: ["mana", "penalty", "resource"],
-            description: "Reduces speed until next turn then regain mana (~25% max mana)",
+            description: "Reduces speed until next turn then regain mana (~30% max mana)",
             code() {
-                logAction(`${this.name} is taking a nap`, "debuff");
                 new Modifier("Lazing Around", "Reduces speed and regen mana",
-                    { caster: this, target: this, duration: 1, properties: ["physical", "mana", "penalty", "resource"], stats: { speed: -10 }, listeners: { turnStart: true }, penalty: true },
-                    function() { resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats)) },
+                    { caster: this, target: this, duration: 1, properties: ["physical", "mana", "penalty", "resource"], stats: { speed: -15 }, listeners: { turnStart: true }, penalty: true },
+                    function() {},
                     function(context) {
                         if (context.unit === this.vars.caster) {
-                            if (this.vars.applied) resourceChange(this.vars.caster, { mana: this.vars.caster.manaRegen * 2.5 });
+                            if (this.vars.applied) resourceChange(this.vars.caster, { mana: this.vars.caster.manaRegen * 3 });
                             this.vars.duration--;
                         }
                         return this.vars.duration <= 0;
@@ -232,10 +223,7 @@ FourArcher.skills = {
             name: "Lucky Aura",
             properties: ["buff"],
             description: "Increases a random alive ally accuracy/evasion/focus/resist/presence for one of their turns",
-            code() {
-                logAction(`${this.name} randomly gives out good luck.`, "buff")
-                basicModifier("Lucky Aura", "Increases accuracy/evasion/focus/resist/presence", { caster: this, target: randTarget(unitFilter(this.team, '', false), 1, true)[0], duration: 2, properties: ["mystic", "mana", "buff"], stats: { accuracy: 25, evasion: 45, focus: 35, resist: 40, presence: 40 }, listeners: { turnStart: true } });
-            }
+            code() { basicModifier("Lucky Aura", "Increases accuracy/evasion/focus/resist/presence", { caster: this, target: randTarget(unitFilter(this.team, '', false), 1, true)[0], duration: 2, properties: ["mystic", "mana", "buff"], stats: { accuracy: 25, evasion: 45, focus: 35, resist: 40, presence: 40 }, listeners: { turnStart: true } }) }
         }
     ],
     passive: [
@@ -261,8 +249,8 @@ FourArcher.skills = {
             description: "Reduce speed and regen mana (~10% max mana) each turn",
             code() {
                 new Modifier("Lazing Around", "Reduces speed and regen mana.",
-                    { caster: this, target: this, properties: ["physical", "mana", "penalty", "resource"], stats: { speed: -20 }, penalty: true, passive: true },
-                    function() { resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats)) },
+                    { caster: this, target: this, properties: ["physical", "mana", "penalty", "resource"], stats: { speed: -25 }, penalty: true, passive: true },
+                    function() {},
                     function(context) { if (context.unit === this.vars.caster && this.vars.applied) resourceChange(this.vars.caster, { mana: this.vars.caster.manaRegen }) }
                 );
             }
@@ -383,8 +371,8 @@ FourArcher.skills = {
             description: "Reduce speed and regen mana (~15% max mana) each turn",
             code() {
                 new Modifier("Lazing Around", "Reduces speed and regen mana",
-                    { caster: this, target: this, properties: ["physical", "mana", "penalty", "resource"], stats: { speed: -10 }, listeners: { turnStart: true }, cancelListeners: ['turnStart'], penalty: true, passive: true },
-                    function() { resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats)) },
+                    { caster: this, target: this, properties: ["physical", "mana", "penalty", "resource"], stats: { speed: -15 }, listeners: { turnStart: true }, cancelListeners: ['turnStart'], penalty: true, passive: true },
+                    function() {},
                     function(context) { if (context.unit === this.vars.caster) resourceChange(this.vars.caster, { mana: this.vars.caster.manaRegen * 1.5 }) }
                 );
             }

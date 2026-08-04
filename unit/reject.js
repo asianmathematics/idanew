@@ -1,9 +1,9 @@
 import { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentUnit, currentAction, elements, eventState } from '../combatDictionary.js';
 import { Unit, allUnits } from './unit.js';
 
-export const reject = new Unit("Reject", [660, 30, 28, 60, 40, 60, 80, 40, 70, "front", 66, 60, 8]);
+export const Reject = new Unit("Reject", [660, 30, 28, 60, 40, 60, 80, 40, 70, "front", 66, 60, 8], ["independence/loneliness"]);
 
-reject.skills = {
+Reject.skills = {
     special: [
         {
             name: "Bite",
@@ -26,7 +26,6 @@ reject.skills = {
             cost: { stamina: 20 },
             description: "Increases defense/evasion/resist and decreases attack/accuracy/focus/presence for 4 turns",
             code() {
-                logAction(`${this.name} doesn't let the past take control!`, "buff");
                 basicModifier("Rejected by All buff", "Defense, evasion, resist increase", { caster: this, target: this, duration: 5, properties: ["physical", "buff"], stats: { defense: 30, evasion: 20, resist: 15 }, listeners: { turnEnd: true }, focus: true });
                 basicModifier("Rejected by All penalty", "Attack, accuracy, focus, and presence decrease", { caster: this, target: this, duration: 5, properties: ["physical", "penalty"], stats: { attack: -10, accuracy: -15, focus: -30, presence: -30 }, listeners: { turnEnd: true }, focus: true, penalty: true });
             }
@@ -37,7 +36,6 @@ reject.skills = {
             cost: { stamina: 10 },
             description: "Increases defense/resist and decreases accuracy/evasion/focus/presence for 4 turns",
             code() {
-                logAction(`${this.name} doesn't let the past take control!`, "buff");
                 basicModifier("Rejected by All buff", "Defense, evasion, resist increase", { caster: this, target: this, duration: 5, properties: ["physical", "buff"], stats: { defense: 40, resist: 60 }, listeners: { turnEnd: true }, focus: true });
                 basicModifier("Rejected by All penalty", "Attack, accuracy, focus, and presence decrease", { caster: this, target: this, duration: 5, properties: ["physical", "penalty"], stats: { accuracy: -15, evasion: -10, focus: -20, presence: -20 }, listeners: { turnEnd: true }, focus: true, penalty: true });
             }
@@ -60,18 +58,18 @@ reject.skills = {
         {
             name: "Rejected by All",
             properties: ["physical", "buff", "penalty"],
-            description: "Increases defense/evasion/resist and decreases attack/accuracy/focus/presence for 2 turns. If currently active, refreshes duration and allow stamina regen next turn",
+            description: "Increases defense/evasion/resist and decreases accuracy/focus/presence for 2 turns. If currently active, refreshes duration and allow stamina regen next turn",
             code() {
-                logAction(`${this.name} doesn't let the past take control!`, "buff");
                 let mod = modifiers.find(m => m.name.includes("Rejected by All") && m.vars.caster === this);
                 if (mod) {
                     this.previousAction[0] = false;
                     mod.vars.duration = 3;
+                    logAction(`${this.name} refreshes ${mod.name}`);
                     mod = modifiers.find(m => m !== mod && m.name.includes("Rejected by All") && m.vars.caster === this)
-                    if (mod) mod.vars.duration = 3;
+                    if (mod) mod.vars.duration = 3, logAction(`${this.name} refreshes ${mod.name}`);
                 } else {
                     basicModifier("Rejected by All buff", "Defense, evasion, resist increase", { caster: this, target: this, duration: 3, properties: ["physical", "buff"], stats: { defense: 20, evasion: 15, resist: 10 }, listeners: { turnEnd: true }, focus: true });
-                    basicModifier("Rejected by All penalty", "Attack, accuracy, focus, and presence decrease", { caster: this, target: this, duration: 3, properties: ["physical", "penalty"], stats: { attack: -5, accuracy: -10, focus: -20, presence: -25 }, listeners: { turnEnd: true }, focus: true, penalty: true });
+                    basicModifier("Rejected by All penalty", "Accuracy, focus, and presence decrease", { caster: this, target: this, duration: 3, properties: ["physical", "penalty"], stats: { accuracy: -10, focus: -20, presence: -25 }, listeners: { turnEnd: true }, focus: true, penalty: true });
                 }
             }
         },
@@ -80,13 +78,13 @@ reject.skills = {
             properties: ["physical", "buff", "penalty"],
             description: "Increases defense/resist and decreases accuracy/evasion/focus/presence for 2 turns. If currently active, refreshes duration and allow stamina regen next turn",
             code() {
-                logAction(`${this.name} doesn't let the past take control!`, "buff");
                 let mod = modifiers.find(m => m.name.includes("Faded Concept") && m.vars.caster === this);
                 if (mod) {
                     this.previousAction[0] = false;
                     mod.vars.duration = 3;
+                    logAction(`${this.name} refreshes ${mod.name}`);
                     mod = modifiers.find(m => m !== mod && m.name.includes("Faded Concept") && m.vars.caster === this)
-                    if (mod) mod.vars.duration = 3;
+                    if (mod) mod.vars.duration = 3, logAction(`${this.name} refreshes ${mod.name}`);
                 } else {
                     basicModifier("Faded Concept buff", "Defense, evasion, resist increase", { caster: this, target: this, duration: 3, properties: ["physical", "buff"], stats: { defense: 30, resist: 40 }, listeners: { turnEnd: true }, focus: true });
                     basicModifier("Faded Concept penalty", "Attack, accuracy, focus, and presence decrease", { caster: this, target: this, duration: 3, properties: ["physical", "penalty"], stats: { accuracy: -10, evasion: -5, focus: -15, presence: -15 }, listeners: { turnEnd: true }, focus: true, penalty: true });
@@ -110,11 +108,10 @@ reject.skills = {
         {
             name: "Rejected by All",
             properties: ["buff", "penalty"],
-            description: "Increases defense/evasion/resist and decreases accuracy/focus/presence for 1 turn",
+            description: "Increases defense/evasion/resist and decreases focus/presence for 1 turn",
             code() {
-                logAction(`${this.name} doesn't let the past take control!`, "buff");
                 basicModifier("Rejected by All buff", "Defense, evasion, resist increase", { caster: this, target: this, duration: 2, properties: ["physical", "buff"], stats: { defense: 15, evasion: 10, resist: 5 }, listeners: { turnEnd: true }, focus: true });
-                basicModifier("Rejected by All penalty", "Attack, accuracy, focus, and presence decrease", { caster: this, target: this, duration: 2, properties: ["physical", "penalty"], stats: { accuracy: -5, focus: -15, presence: -20 }, listeners: { turnEnd: true }, focus: true, penalty: true });
+                basicModifier("Rejected by All penalty", "Focus and presence decrease", { caster: this, target: this, duration: 2, properties: ["physical", "penalty"], stats: { focus: -15, presence: -20 }, listeners: { turnEnd: true }, focus: true, penalty: true });
             }
         },
         {
@@ -122,9 +119,8 @@ reject.skills = {
             properties: ["buff", "penalty"],
             description: "Increases defense/resist and decreases accuracy/focus/presence for 1 turn",
             code() {
-                logAction(`${this.name} doesn't let the past take control!`, "buff");
                 basicModifier("Rejected by All buff", "Defense, evasion, resist increase", { caster: this, target: this, duration: 2, properties: ["physical", "buff"], stats: { defense: 20, resist: 30 }, listeners: { turnEnd: true }, focus: true });
-                basicModifier("Rejected by All penalty", "Attack, accuracy, focus, and presence decrease", { caster: this, target: this, duration: 2, properties: ["physical", "penalty"], stats: { accuracy: -5, focus: -10, presence: -10 }, listeners: { turnEnd: true }, focus: true, penalty: true });
+                basicModifier("Rejected by All penalty", "Accuracy, focus, and presence decrease", { caster: this, target: this, duration: 2, properties: ["physical", "penalty"], stats: { accuracy: -5, focus: -10, presence: -10 }, listeners: { turnEnd: true }, focus: true, penalty: true });
             }
         }
     ],
@@ -148,7 +144,7 @@ reject.skills = {
             code() {
                 logAction(`${this.name} doesn't let the past take control!`, "buff");
                 basicModifier("Rejected by All buff", "Defense, evasion, resist increase", { caster: this, target: this, duration: 2, properties: ["physical", "buff"], stats: { defense: 15, evasion: 10, resist: 10 }, listeners: { turnEnd: true }, focus: true });
-                basicModifier("Rejected by All penalty", "Attack, accuracy, focus, and presence decrease", { caster: this, target: this, duration: 2, properties: ["physical", "penalty"], stats: { accuracy: -5, focus: -15, presence: -20 }, listeners: { turnEnd: true }, focus: true, penalty: true });
+                basicModifier("Rejected by All penalty", "Focus, and presence decrease", { caster: this, target: this, duration: 2, properties: ["physical", "penalty"], stats: { focus: -15, presence: -20 }, listeners: { turnEnd: true }, focus: true, penalty: true });
             }
         },
         {
@@ -157,8 +153,8 @@ reject.skills = {
             description: "Increases defense/resist and decreases accuracy/focus/presence",
             code() {
                 logAction(`${this.name} doesn't let the past take control!`, "buff");
-                basicModifier("Rejected by All buff", "Defense, evasion, resist increase", { caster: this, target: this, duration: 2, properties: ["physical", "buff"], stats: { defense: 25, resist: 30 }, listeners: { turnEnd: true }, focus: true });
-                basicModifier("Rejected by All penalty", "Attack, accuracy, focus, and presence decrease", { caster: this, target: this, duration: 2, properties: ["physical", "penalty"], stats: { accuracy: -5, focus: -10, presence: -10 }, listeners: { turnEnd: true }, focus: true, penalty: true });
+                basicModifier("Rejected by All buff", "Defense, evasion, resist increase", { caster: this, target: this, duration: 2, properties: ["physical", "buff"], stats: { defense: 25, resist: 15 }, listeners: { turnEnd: true }, focus: true });
+                basicModifier("Rejected by All penalty", "Accuracy, focus, and presence decrease", { caster: this, target: this, duration: 2, properties: ["physical", "penalty"], stats: { accuracy: -10, focus: -10, presence: -10 }, listeners: { turnEnd: true }, focus: true, penalty: true });
             }
         }
     ]

@@ -519,22 +519,13 @@ function executeSpecialAction(unit, specialSkill) {
 
 export function advanceWave(x = 0) {
     if (x) wave = x;
-    if (wave < 3) {
+    if (wave === 1 || wave === 2) {
         allUnits.splice(0, allUnits.length, ...allUnits.filter(unit => unit.team === 'player'));
         for (let i = modifiers.length - 1; i >= 0; i--) if (!allUnits.includes(modifiers[i].vars.caster)) removeModifier(modifiers[i]);
-    }
+    } else return true;
     let i = allUnits.length;
-    switch (wave) {
-        case 2:
-            for (const e of waveCalc(unitFilter('player', ''), 1.5)) assignEnemySkills(createUnit(e, 'enemy'), e);
-            break;
-        case 1:
-            for (const e of waveCalc(unitFilter('player', ''), 1)) assignEnemySkills(createUnit(e, 'enemy'), e);
-            break;
-        default:
-            return true;
-    }
     logAction(`<strong>Wave ${++wave}!</strong>`, 'turn');
+    for (const e of waveCalc(unitFilter('player', ''), wave-1 ? 1.5 : 1)) assignEnemySkills(createUnit(e, 'enemy'), e);
     if (eventState.waveChange.length) handleEvent('waveChange', { wave });
     updateBattleDisplay();
 }

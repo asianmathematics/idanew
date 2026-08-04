@@ -36,10 +36,7 @@ enemy.skills = {
             properties: ["physical", "stamina", "buff"],
             cost: { stamina: 20 },
             description: "Increases defense, evasion, and resist for 5 turns",
-            code() {
-                logAction(`${this.name} braces for damage!`, "buff");
-                basicModifier("Defend", "Defense, evasion, and resist increase", { caster: this, target: this, duration: 5, properties: ["physical", "buff"], stats: { defense: 30, evasion: 25, resist: 50 }, listeners: { turnStart: true }, focus: true });
-            }
+            code() { basicModifier("Defend", "Defense, evasion, and resist increase", { caster: this, target: this, duration: 5, properties: ["physical", "buff"], stats: { defense: 30, evasion: 25, resist: 50 }, listeners: { turnStart: true }, focus: true }) }
         },
         {
             name: "Taunt",
@@ -53,7 +50,7 @@ enemy.skills = {
                     logAction(`${this.name} taunts ${target[0].name}!`, "debuff");
                     new Modifier("Taunt", "Decreases target evasion, focus, and resist and increase chance for caster to be targeted by target",
                         { caster: this, target: target[0], duration: will > 99 ? 6 : Math.ceil(will/25), properties: ["physical", "debuff"], stats: { evasion: -20, focus: -35, resist: -25 }, listeners: { turnStart: true, targetStart: true }, cancelListeners: ['targetStart'], focus: true },
-                        function() { resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats)) },
+                        function() {},
                         function(context) {
                             let i;
                             if (context.event === 'targetStart' && currentUnit.at(-2) === this.vars.target && (i = context.unitList.findIndex(u => u === this.vars.caster)) > -1) (((context.targetMods.targets ??= [])[i] ??= {}).presence ??= { mult: 1 }).mult++;
@@ -102,10 +99,9 @@ enemy.skills = {
             properties: ["physical", "buff"],
             description: "Increases defense and resist for 2 turns. If currently active, refreshes duration and allow stamina regen next turn",
             code() {
-                logAction(`${this.name} defends against damage`, "buff");
                 const mod = modifiers.find(m => m.name === "Defend" && m.vars.caster === this)
-                if (mod) mod.vars.duration = 2, this.previousAction[0] = false;
-                else basicModifier("Defend", "Defense and resist increase", { caster: this, target: this, duration: 2, properties: ["physical", "buff"], stats: { defense: 20, resist: 30 }, listeners: { turnStart: true }, focus: true });
+                if (mod) mod.vars.duration = 2, this.previousAction[0] = false, logAction(`${this.name} refreshes ${mod.name}`);
+                else basicModifier("Defend", "Defense and resist increase", { caster: this, target: this, duration: 2, properties: ["physical", "buff"], stats: { defense: 20, evasion: 15, resist: 30 }, listeners: { turnStart: true }, focus: true });
             }
         },
         {
@@ -118,7 +114,7 @@ enemy.skills = {
                     logAction(`${this.name} distracts ${target[0].name}`, "debuff");
                     new Modifier("Taunt", "Decreases target focus, and resist and doubles the chance for caster to be targeted by target",
                         { caster: this, target: target[0], duration: 1, properties: ["physical", "debuff"], stats: { focus: -25, resist: -10 }, listeners: { turnStart: true, targetStart: true }, cancelListeners: ['targetStart'], focus: true },
-                        function() { resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats)) },
+                        function() {},
                         function(context) {
                             let i;
                             if (context.event === 'targetStart' && currentUnit.at(-2) === this.vars.target && (i = context.unitList.findIndex(u => u === this.vars.caster)) > -1) (((context.targetMods.targets ??= [])[i] ??= {}).presence ??= { mult: 1 }).mult += 1;
@@ -165,10 +161,7 @@ enemy.skills = {
             name: "Defend",
             properties: ["buff"],
             description: "Increases defense and resist for 1 turn",
-            code() {
-                logAction(`${this.name} blocks`, "buff");
-                basicModifier("Defend", "Defense and resist increase", { caster: this, target: this, duration: 2, properties: ["physical", "buff"], stats: { defense: 10, resist: 15 }, listeners: { turnStart: true }, focus: true });
-            }
+            code() { basicModifier("Defend", "Defense and resist increase", { caster: this, target: this, duration: 2, properties: ["physical", "buff"], stats: { defense: 10, resist: 15 }, listeners: { turnStart: true }, focus: true }) }
         },
         {
             name: "Taunt",
@@ -180,7 +173,7 @@ enemy.skills = {
                     logAction(`${this.name} distracts ${target[0].name}`, "debuff");
                     new Modifier("Taunt", "Decreases target evasion, focus, and resist and doubles the chance for caster to be targeted by target",
                         { caster: this, target: target[0], duration: 1, properties: ["physical", "debuff"], stats: { focus: -10 }, listeners: { turnStart: true, targetStart: true }, cancelListeners: ['targetStart'], focus: true },
-                        function() { resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats)) },
+                        function() {},
                         function(context) {
                             let i;
                             if (context.event === 'targetStart' && currentUnit.at(-2) === this.vars.target && (i = context.unitList.findIndex(u => u === this.vars.caster)) > -1) (((context.targetMods.targets ??= [])[i] ??= {}).presence ??= { mult: 1 }).mult += 1;
@@ -205,7 +198,7 @@ enemy.skills = {
             description: "Increases attack and accuracy every turn until attacking or stuned, which it resets",
             code() {
                 new Modifier("Power Up", "Increases attack and accuracy every turn until attacking or stuned, which it resets",
-                    { caster: this, target: this, properties: ["physical", "buff"], listeners: { attackStart: true, turnEnd: true }, cancelListeners: ['attackStart', 'turnEnd'], stats: { attack: 15, accuracy: 25 }, focus: true, passive: true, charge: 0 },
+                    { caster: this, target: this, properties: ["physical", "buff"], listeners: { attackStart: true, turnEnd: true }, cancelListeners: ['attackStart', 'turnEnd'], stats: { attack: 15, accuracy: 25 }, disablestatChange: true, focus: true, passive: true, charge: 0 },
                     function() {},
                     function(context) {
                         if (context.unit === this.vars.target) return !++this.vars.charge;
@@ -250,13 +243,21 @@ enemy.skills = {
                     function() {},
                     function(context) {
                         if (context.unit === this.vars.caster) {
-                            let target = randTarget(unitFilter(this.team === "player" ? "enemy" : "player", '', false)), will = resistDebuff(this.vars.caster, target)[0];
+                            let target = randTarget(unitFilter(this.vars.caster.team === "player" ? "enemy" : "player", '', false)), will = resistDebuff(this.vars.caster, target)[0];
                             this.changeTarget(target[0]);
                             if (this.vars.fail && will > 33) this.cancel(this.vars.fail = false);
                             if (!this.vars.fail && will <= 33) this.cancel(this.vars.fail = true);
                         }
                         let i;
                         if (this.vars.target && context.event === 'targetStart' && currentUnit.at(-2) === this.vars.target && (i = context.unitList.findIndex(u => u === this.vars.caster)) > -1) (((context.targetMods.targets ??= [])[i] ??= {}).presence ??= { mult: 1 }).mult += 1;
+                    }, undefined,
+                    function(unit) {
+                        if (!this.vars.target) resetStat(unit, Object.keys(this.vars.stats), Object.values(this.vars.stats));
+                        if (this.vars.applied) {
+                            this.cancel(true, true);
+                            this.vars.target = unit;
+                            this.cancel(false, true);
+                        } else this.vars.target = unit;
                     }
                 );
             }
@@ -281,7 +282,7 @@ enemy.skills = {
             description: "Increases attack/accuracy/focus every turn until attacking or stuned, which it resets",
             code() {
                 new Modifier("Power Up", "Increases attack/accuracy/focus every turn until attacking or stuned, which it resets",
-                    { caster: this, target: this, properties: ["physical", "buff"], listeners: { attackStart: true, turnEnd: true }, cancelListeners: ['attackStart', 'turnEnd'], stats: { attack: 30, accuracy: 50, focus: 50 }, focus: true, passive: true, charge: 0 },
+                    { caster: this, target: this, properties: ["physical", "buff"], listeners: { attackStart: true, turnEnd: true }, cancelListeners: ['attackStart', 'turnEnd'], stats: { attack: 30, accuracy: 50, focus: 50 }, disablestatChange: true, focus: true, passive: true, charge: 0 },
                     function() {},
                     function(context) {
                         if (context.unit === this.vars.target) return !++this.vars.charge;
@@ -314,8 +315,8 @@ enemy.skills = {
         {
             name: "Defend",
             properties: ["physical", "stamina", "buff"],
-            description: "Increases defense and resist",
-            code() { basicModifier("Defend", "Defense and resist increase", { caster: this, target: this, properties: ["physical", "buff"], stats: { defense: 15, resist: 30 }, listeners: { turnStart: true }, focus: true, passive: true }) }
+            description: "Increases defense, evasion, and resist",
+            code() { basicModifier("Defend", "Defense, evasion, and resist increase", { caster: this, target: this, properties: ["physical", "buff"], stats: { defense: 15, evasion: 15, resist: 30 }, listeners: { turnStart: true }, focus: true, passive: true }) }
         },
         {
             name: "Taunt",
@@ -327,13 +328,21 @@ enemy.skills = {
                     function() {},
                     function(context) {
                         if (context.unit === this.vars.caster) {
-                            let target = randTarget(unitFilter(this.team === "player" ? "enemy" : "player", '', false)), will = resistDebuff(this.vars.caster, target)[0];
+                            let target = randTarget(unitFilter(this.vars.caster.team === "player" ? "enemy" : "player", '', false)), will = resistDebuff(this.vars.caster, target)[0];
                             this.changeTarget(target[0]);
                             if (this.vars.fail && will > 33) this.cancel(this.vars.fail = false);
                             if (!this.vars.fail && will <= 33) this.cancel(this.vars.fail = true);
                         }
                         let i;
                         if (this.vars.target && context.event === 'targetStart' && currentUnit.at(-2) === this.vars.target && (i = context.unitList.findIndex(u => u === this.vars.caster)) > -1) (((context.targetMods.targets ??= [])[i] ??= {}).presence ??= { mult: 1 }).mult += 1;
+                    }, undefined,
+                    function(unit) {
+                        if (!this.vars.target) resetStat(unit, Object.keys(this.vars.stats), Object.values(this.vars.stats));
+                        if (this.vars.applied) {
+                            this.cancel(true, true);
+                            this.vars.target = unit;
+                            this.cancel(false, true);
+                        } else this.vars.target = unit;
                     }
                 );
             }

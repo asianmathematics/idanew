@@ -10,6 +10,7 @@ const events = [
     'actionStart', 'positionChange', 'waveChange', 'unitChange', 'statChange'
 ];
 events.forEach(type => eventState[type] = []);
+let turnOffStatLog = false;
 const system = { name: "system" };
 
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms / (window.combatSpeedMultiplier || 1))); }
@@ -24,13 +25,14 @@ class Modifier {
         this.init = initFunc;
         this.onTurn = onTurnFunc;
         this.cancel = (cancel = true, temp = false) => {
+            turnOffStatLog = temp;
             if (eventState.cancel.length && !temp) handleEvent('cancel', { modifier: this, cancel });
             cancel ? this.vars.cancel++ : this.vars.cancel--;
             if (cancelFunc) (cancelFunc).call(this, cancel, temp);
             else {
                 const isActivating = !this.vars.cancel && !this.vars.applied, isDeactivating = this.vars.cancel && this.vars.applied;
                 if (isDeactivating || isActivating) {
-                    if (this.vars.stats && this.vars.target) resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats), false);
+                    if (this.vars.stats && this.vars.target && !this.vars.disablestatChange) resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats), false);
                     if (!temp && this.vars.cancelListeners) {
                         for (const listener of this.vars.cancelListeners) {
                             this.vars.listeners[listener] = isActivating;
@@ -44,8 +46,9 @@ class Modifier {
                     this.vars.applied = isActivating;
                 }
             }
+            turnOffStatLog = false;
         }
-        this.changeTarget = changeTargetFunc || this.vars.targets ? ((remove = [], add = []) => {
+        this.changeTarget = changeTargetFunc || (this.vars.targets ? ((remove = [], add = []) => {
             if (!add.length && remove.length === this.vars.targets.length) removeModifier(this);
             else {
                 if (this.vars.applied) {
@@ -67,7 +70,7 @@ class Modifier {
                     this.cancel(false, true);
                 } else this.vars.target = unit;
             }
-        });
+        }));
         if (currentAction.length) {
             this.vars.parent = currentAction.at(-1);
             if (currentAction.at(-1).vars) currentAction.at(-1).vars.child ? currentAction.at(-1).vars.child.push(this) : currentAction.at(-1).vars.child = [this];
@@ -77,6 +80,7 @@ class Modifier {
         currentUnit.push(this.vars.caster);
         currentAction.push(this);
         this.init() ? removeModifier(this) : this.vars.cancel = !(this.vars.applied = this.vars.start = true);
+        if (this.vars.stats && this.vars.target && !this.vars.disablestatChange) resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats));
         if (this.vars.reduction) for (const stat of Object.keys(this.vars.reduction)) this.vars.caster.mult[stat] ? (this.vars.caster.base[stat] -= this.vars.reduction[stat]) && resetStat(this.vars.caster, [stat]) : (this.vars.caster.base[stat] -= this.vars.reduction[stat]) && (this.vars.caster[stat] = Math.max(this.vars.caster[stat] -this.vars.reduction[stat], 0));
         if (this.vars.listeners) for (const eventType in this.vars.listeners) if (this.vars.listeners[eventType]) eventState[eventType].push(this);
         currentAction.pop();
@@ -147,7 +151,7 @@ function removeModifier(modifier) {
 
 function basicModifier(name, description, vari) {
     return new Modifier(name, description, vari,
-        function() { resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats)) },
+        function() {},
         function(context) {
             if (this.vars.target === context.unit) this.vars.duration--;
             return this.vars.duration <= 0;
@@ -180,33 +184,57 @@ new Modifier("Remove Reduction", "Remove reduction on midline position change",
     function() {}
 )
 
-function logAction(message, type = 'info') {
-    const logContainer = document.getElementById('action-log');
-    const logEntry = document.createElement('div');
-    logEntry.className = `log-entry ${type}-entry`;
-    logEntry.innerHTML = (currentAction.length ? currentAction.at(-1).name + ': ' : '') + message;
-    logContainer.appendChild(logEntry);
-    /*const entries = logContainer.children;
-    const maxEntries = window.innerWidth < 800 ? 100 : 250;
-    while (entries.length > maxEntries) logContainer.removeChild(entries[0]);*/
-    logContainer.scrollTop = logContainer.scrollHeight;
-}
+const logAction = (function () {
+    let lastLogState = {};
+    const STAT_CHANGE_REGEX = /^(.+?)'s (.+ (?:increased|decreased)(?:, and .+ decreased)?\.)$/;
+    return function (message, type = 'info') {
+        const logContainer = document.getElementById('action-log');
+        if (!logContainer) return;
+        const actionPrefix = currentAction.length ? currentAction.at(-1).name + ': ' : '';
+        const match = message.match(STAT_CHANGE_REGEX);
+        if (match) {
+            const [, unitName, statChangeText] = match;
+            if (lastLogState.type === type && lastLogState.actionPrefix === actionPrefix && lastLogState.statChangeText === statChangeText) {
+                lastLogState.units.push(unitName);
+                const combinedUnits = lastLogState.units.join(', ');
+                lastLogState.element.innerHTML = `${actionPrefix}${combinedUnits}'s ${statChangeText}`;
+                logContainer.scrollTop = logContainer.scrollHeight;
+                return;
+            }
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}-entry`;
+            logEntry.innerHTML = actionPrefix + message;
+            logContainer.appendChild(logEntry);
+            lastLogState = { type, actionPrefix, statChangeText, units: [unitName], element: logEntry };
+        } else {
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}-entry`;
+            logEntry.innerHTML = actionPrefix + message;
+            logContainer.appendChild(logEntry);
+            lastLogState = {};
+        }
+        /*const entries = logContainer.children;
+        const maxEntries = window.innerWidth < 800 ? 100 : 250;
+        while (entries.length > maxEntries) logContainer.removeChild(entries[0]);*/
+        logContainer.scrollTop = logContainer.scrollHeight;
+    };
+})();
 
 function resetStat(unit, statList, values = [], add = true) {
-    if (values.length > 0) {
+    if (values.length) {
         /*console.log(values);*/
         if (eventState.statChange.length) handleEvent('statChange', { unit, statList, values, add });
         let nullCheck;
+        const inc = [], dec = [];
         for (let i = 0; i < Math.min(statList.length, values.length); i++) {
-            if (values[i] !== values[i] || values[i] === undefined) {
-                if (!nullCheck) {
-                    logAction("Stat change has null values!", "error");
-                    nullCheck = true;
-                }
+            if (!values[i]) {
+                if ((values[i] == null || Number.isNaN(values[i])) && !nullCheck) nullCheck = !logAction("Stat change has null values!", "error");
                 continue;
             }
             unit.mult[statList[i]] += add ? values[i] : -values[i];
+            (add ? values[i] : -values[i]) > 0 ? inc.push(statList[i]) : dec.push(statList[i])
         }
+        if (!turnOffStatLog && (inc.length + dec.length)) !dec.length ? logAction(`${unit.name}'s ${inc.join(", ")} increased.`, 'buff') : !inc.length ? logAction(`${unit.name}'s ${dec.join(", ")} decreased.`, 'debuff') : logAction(`${unit.name}'s ${inc.join(", ")} increased, and ${dec.join(", ")} decreased.`, 'info');
     }
     for (const stat of statList) unit[stat] = unit.base[stat] + Math.max(-0.8 * unit.base[stat], unit.mult[stat] || 0);
 }
@@ -238,15 +266,17 @@ function enemyTurn(unit) {
 }
 
 function executeEnemyAction(unit, action) {
-    if (eventState.actionStart.length) handleEvent('actionStart', { unit, action: Object.keys(unit.skills).find(s => unit.skills[s] === action) });
+    const type = Object.keys(unit.skills).find(s => unit.skills[s] === action)
+    if (eventState.actionStart.length) handleEvent('actionStart', { unit, action: type });
     if (!action.cost || resourceChange(unit, action.cost, false)) {
+        if (type === 'special') logAction(`${unit.name} activates special!`)
         if (action.properties.includes('physical')) unit.previousAction[0] = true;
         if (action.properties.includes('mystic')) unit.previousAction[1] = true;
         if (action.properties.includes('techno')) unit.previousAction[2] = true;
         currentAction.push(action);
         action.target ? action.target.call(unit) : action.code.call(unit);
         currentAction.pop();
-    } else logAction(`${unit.name}'s action failed!`, 'miss');
+    } else logAction(`${unit.name}'s ${action.name} action failed!`, 'miss');
     if (eventState.turnEnd.length) handleEvent('turnEnd', { unit });
     setTimeout(window.combatTick, 1000 / (window.combatSpeedMultiplier || 1));
 }

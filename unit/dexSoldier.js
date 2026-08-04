@@ -1,7 +1,7 @@
 import { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentUnit, currentAction, elements, eventState } from '../combatDictionary.js';
 import { Unit, allUnits } from './unit.js';
 
-export const DexSoldier = new Unit("DeX (Soldier)", [1800, 25, 55, 70, 50, 60, 80, 55, 200, "front", 250, 150, 27]);
+export const DexSoldier = new Unit("DeX (Soldier)", [1800, 25, 55, 70, 50, 60, 80, 55, 200, "front", 250, 150, 27], ["perfection/precision"]);
 
 DexSoldier.description = "3-star physical frontline unit with high defensive stats but low speed, has strong sustain and defensive capabilities.";
 
@@ -71,7 +71,7 @@ DexSoldier.skills = {
                 logAction(`${this.name} protects the frontline!`, "buff")
                 new Modifier("Guardian", "Redirects attacks and increases defense",
                     { caster: this, target: this, duration: 1, properties: ["physical"], stats: { defense: 40 }, listeners: { attackStart: true, turnStart: true }, cancelListeners: ['attackStart'], focus: true },
-                    function() { resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats)) },
+                    function() {},
                     function(context) {
                         if (context.event === "attackStart" && context.attacker.team !== this.vars.target.team && !currentAction.at(-2)?.properties?.includes("aoe") && !currentAction.at(-2)?.vars?.properties?.includes("aoe")) {
                             let redirect = 0;
@@ -95,10 +95,7 @@ DexSoldier.skills = {
             properties: ["physical", "stamina", "buff"],
             cost: { stamina: 30 },
             description: "Increases defense, resist, and presence for 5 turns",
-            code() {
-                logAction(`${this.name} makes a final stand!`, "buff");
-                basicModifier("Last Stand", "Defense, resist, and presence increase", { caster: this, target: this, duration: 5, properties: ["physical", "buff"], stats: { defense: 35, resist: 60, presence: 150 }, listeners: { turnStart: true }, focus: true });
-            }
+            code() { basicModifier("Last Stand", "Defense, resist, and presence increase", { caster: this, target: this, duration: 5, properties: ["physical", "buff"], stats: { defense: 35, resist: 60, presence: 150 }, listeners: { turnStart: true }, focus: true }) }
         },
         {
             name: "Quake Hammer",
@@ -106,7 +103,7 @@ DexSoldier.skills = {
             cost: { stamina: 50 },
             description: "Makes two AOE attacks on enemy frontline",
             code() {
-                let targets = unitFilter(this.team === 'player' ? 'enemy' : 'player', 'front', false);
+                const targets = unitFilter(this.team === 'player' ? 'enemy' : 'player', 'front', false);
                 if (eventState.targets.length) handleEvent('targets', { selectedTargets: targets, count: targets.length });
                 attack(this, targets, 2)
             }
@@ -170,11 +167,10 @@ DexSoldier.skills = {
         {
             name: "Last Stand",
             properties: ["physical", "buff"],
-            description: "Increases defense/resist/presence for 2 turns. If currently active, refreshes duration and allow stamina regen next turn",
+            description: "Increases defense, resist, and presence for 2 turns. If currently active, refreshes duration and allow stamina regen next turn",
             code() {
-                logAction(`${this.name} makes a stand.`, "buff");
                 const mod = modifiers.find(m => m.name === "Last Stand" && m.vars.caster === this)
-                if (mod) mod.vars.duration = 2, this.previousAction[0] = false;
+                if (mod) mod.vars.duration = 2, this.previousAction[0] = false, logAction(`${this.name} refreshes ${mod.name}`);
                 else basicModifier("Last Stand", "Defense, resist, and presence increase", { caster: this, target: this, duration: 2, properties: ["physical", "buff"], stats: { defense: 25, resist: 30, presence: 100 }, listeners: {turnStart: true}, focus: true });
             }
         },
@@ -182,7 +178,7 @@ DexSoldier.skills = {
             name: "Quake Hammer",
             properties: ["physical", "stamina", "attack", "aoe", "multi-target"],
             cost: { stamina: 20 },
-            description: "Makes an AOE attack on enemy frontline reduced attack and focus",
+            description: "Makes an AOE attack on enemy frontline with reduced attack and focus",
             code() {
                 let targets = unitFilter(this.team === 'player' ? 'enemy' : 'player', 'front', false);
                 if (eventState.targets.length) handleEvent('targets', { selectedTargets: targets, count: targets.length });
@@ -220,10 +216,7 @@ DexSoldier.skills = {
             name: "Last Stand",
             properties: ["buff"],
             description: "Increases defense and presence for 1 turn",
-            code() {
-                logAction(`${this.name} stands there.`, "buff")
-                basicModifier("Last Stand", "Defense and presence increase", { caster: this, target: this, duration: 1, properties: ["physical", "buff"], stats: { defense: 15, presence: 50 }, listeners: {turnStart: true}, focus: true });
-            }
+            code() { basicModifier("Last Stand", "Defense and presence increase", { caster: this, target: this, duration: 1, properties: ["physical", "buff"], stats: { defense: 15, presence: 50 }, listeners: {turnStart: true}, focus: true }) }
         }
     ],
     passive: [
@@ -260,7 +253,7 @@ DexSoldier.skills = {
             code() {
                 new Modifier("Guardian", "Redirects attacks",
                     { caster: this, target: this, duration: 1, properties: ["physical", "stamina"], listeners: { attackStart: true }, cancelListeners: ['attackStart'], cost: this.skills.passive.cost, focus: true, passive: true },
-                    function() { },
+                    function() {},
                     function(context) {
                         if (this.vars.caster.stamina >= this.vars.cost.stamina && !currentAction.at(-2)?.properties?.includes("aoe") && !currentAction.at(-2)?.vars?.properties?.includes("aoe") && context.event === "attackStart" && context.attacker.team !== this.vars.target.team) {
                             let redirect = 0;
