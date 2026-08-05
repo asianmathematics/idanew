@@ -1,4 +1,4 @@
-import { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentUnit, currentAction, elements, eventState } from '../combatDictionary.js';
+import { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, stunModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentUnit, currentAction, elements, eventState } from '../combatDictionary.js';
 import { Unit, allUnits } from './unit.js';
 
 export const ArtificialSoldier = new Unit("Artificial Soldier", [1200, 22, 25, 85, 60, 80, 60, 90, 110, "front", 120, 80, 10, 50, 5, 30, 6], ["perfection/precision"]);
@@ -26,7 +26,7 @@ ArtificialSoldier.skills = {
             properties: ["physical", "stamina", "mystic", "techno", "conditional", "drain", "mana", "energy"],
             cost: { stamina: 10 },
             description: "Drains additional stamina by staminaRegen to regen missing mana and energy by regen amounts",
-            code() { resourceChange(this, { stamina: Math.max(5.5-(this.base.mana-this.mana)/this.manaRegen - (this.base.energy-this.energy)/this.energyRegen, 0), mana: this.base.mana/this.manaRegen, energy: this.base.energy/this.energyRegen}, true, true) }
+            code() { resourceChange(this, { stamina: Math.min(5.5-(this.base.mana-this.mana)/this.manaRegen - (this.base.energy-this.energy)/this.energyRegen, 0), mana: this.base.mana/this.manaRegen, energy: this.base.energy/this.energyRegen}, true, true) }
         },
         {
             name: "Perfect Form",
@@ -42,7 +42,7 @@ ArtificialSoldier.skills = {
             description: "Increases accuracy/focus and decreases resist/presence for 5 turns",
             code() {
                 basicModifier("Made to Serve buff", "Accuracy and focus increase", { caster: this, target: this, duration: 6, properties: ["physical", "buff"], stats: { accuracy: 160, focus: 160 }, listeners: { turnEnd: true } });
-                basicModifier("Made to Serve debuff", "resist and presence decrease", { caster: this, target: this, duration: 6, properties: ["physical", "buff"], stats: { resist: -40, presence: -80 }, listeners: { turnEnd: true }, penalty: true });
+                basicModifier("Made to Serve penalty", "resist and presence decrease", { caster: this, target: this, duration: 6, properties: ["physical", "buff"], stats: { resist: -40, presence: -80 }, listeners: { turnEnd: true }, penalty: true });
             }
         }
     ],
@@ -89,8 +89,8 @@ ArtificialSoldier.skills = {
                     mod = modifiers.find(m => m !== mod && m.name.includes("Made to Serve") && m.vars.caster === this)
                     if (mod) mod.vars.duration = 3, logAction(`${this.name} refreshes ${mod.name}`);
                 } else {
-                    basicModifier("Made to Serve buff", "Accuracy and focus increase", { caster: this, target: this, duration: 6, properties: ["physical", "buff"], stats: { accuracy: 120, focus: 120 }, listeners: { turnEnd: true } });
-                    basicModifier("Made to Serve debuff", "resist and presence decrease", { caster: this, target: this, duration: 6, properties: ["physical", "buff"], stats: { resist: -30, presence: -60 }, listeners: { turnEnd: true }, penalty: true });
+                    basicModifier("Made to Serve buff", "Accuracy and focus increase", { caster: this, target: this, duration: 3, properties: ["physical", "buff"], stats: { accuracy: 120, focus: 120 }, listeners: { turnEnd: true } });
+                    basicModifier("Made to Serve penalty", "resist and presence decrease", { caster: this, target: this, duration: 3, properties: ["physical", "buff"], stats: { resist: -30, presence: -60 }, listeners: { turnEnd: true }, penalty: true });
                 }
             }
         }
@@ -106,7 +106,7 @@ ArtificialSoldier.skills = {
             name: "Energy Rifle",
             properties: ["techno", "attack", "conditional", "energy"],
             description: "Attacks a single target 4 times, can spend 5 energy to increase accuracy",
-            code() { attack(this, randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false)), 4, { attacker: { accuracy: { bonus: resourceChange(this, { energy: -5 }) ? 30 : 0 } } }) }
+            code() { attack(this, randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false)), 4, { attacker: { accuracy: { bonus: resourceChange(this, { energy: -5 }) ? 20 : 0 } } }) }
         },
         {
             name: "Recharge",
@@ -125,8 +125,8 @@ ArtificialSoldier.skills = {
             properties: ["buff", "penalty"],
             description: "Increases accuracy/focus and decreases resist/presence for 1 turn",
             code() {
-                basicModifier("Made to Serve buff", "Accuracy and focus increase", { caster: this, target: this, duration: 6, properties: ["physical", "buff"], stats: { accuracy: 80, focus: 80 }, listeners: { turnEnd: true } });
-                basicModifier("Made to Serve debuff", "resist and presence decrease", { caster: this, target: this, duration: 6, properties: ["physical", "buff"], stats: { resist: -20, presence: -40 }, listeners: { turnEnd: true }, penalty: true });
+                basicModifier("Made to Serve buff", "Accuracy and focus increase", { caster: this, target: this, duration: 2, properties: ["physical", "buff"], stats: { accuracy: 80, focus: 80 }, listeners: { turnEnd: true } });
+                basicModifier("Made to Serve penalty", "resist and presence decrease", { caster: this, target: this, duration: 2, properties: ["physical", "buff"], stats: { resist: -20, presence: -40 }, listeners: { turnEnd: true }, penalty: true });
             }
         }
     ],
@@ -151,11 +151,11 @@ ArtificialSoldier.skills = {
         },
         {
             name: "Made to Serve",
-            properties: ["buff", "penalty"],
+            properties: ["physical", "stamina", "buff", "penalty"],
             description: "Increases accuracy/focus and decreases resist/presence",
             code() {
-                basicModifier("Made to Serve buff", "Accuracy and focus increase", { caster: this, target: this, duration: 6, properties: ["physical", "buff"], stats: { accuracy: 60, focus: 60 } });
-                basicModifier("Made to Serve debuff", "resist and presence decrease", { caster: this, target: this, duration: 6, properties: ["physical", "buff"], stats: { resist: -30, presence: -60 }, passive: true, penalty: true });
+                basicModifier("Made to Serve buff", "Accuracy and focus increase", { caster: this, target: this, properties: ["physical", "buff"], stats: { accuracy: 60, focus: 60 } });
+                basicModifier("Made to Serve penalty", "resist and presence decrease", { caster: this, target: this, properties: ["physical", "buff"], stats: { resist: -30, presence: -60 }, passive: true, penalty: true });
             }
         }
     ],
@@ -180,12 +180,20 @@ ArtificialSoldier.skills = {
         },
         {
             name: "Made to Serve",
-            properties: ["buff", "penalty"],
+            properties: ["physical", "stamina", "buff", "penalty"],
             description: "Increases accuracy/focus and decreases resist/presence",
             code() {
-                basicModifier("Made to Serve buff", "Accuracy and focus increase", { caster: this, target: this, duration: 6, properties: ["physical", "buff"], stats: { accuracy: 80, focus: 80 } });
-                basicModifier("Made to Serve debuff", "resist and presence decrease", { caster: this, target: this, duration: 6, properties: ["physical", "buff"], stats: { resist: -20, presence: -40 }, passive: true, penalty: true });
+                basicModifier("Made to Serve buff", "Accuracy and focus increase", { caster: this, target: this, properties: ["physical", "buff"], stats: { accuracy: 80, focus: 80 } });
+                basicModifier("Made to Serve penalty", "resist and presence decrease", { caster: this, target: this, properties: ["physical", "buff"], stats: { resist: -20, presence: -40 }, passive: true, penalty: true });
             }
         }
     ]
 }
+
+ArtificialSoldier.defaultSkills = [
+    { category: 'special', name: 'Perfect Form' },
+    { category: 'basic', name: 'Magic Weapon' },
+    { category: 'secondary', name: 'Energy Rifle' },
+    { category: 'passive', name: 'Made to Serve' },
+    { category: 'augment', name: 'Recharge' }
+];

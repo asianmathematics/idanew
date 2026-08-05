@@ -1,4 +1,4 @@
-import { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentUnit, currentAction, elements, eventState } from '../combatDictionary.js';
+import { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, stunModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentUnit, currentAction, elements, eventState } from '../combatDictionary.js';
 import { Unit, allUnits } from './unit.js';
 
 export const Experiment = new Unit("Experiment", [700, 24, 10, 70, 45, 70, 45, 45, 80, "front", 80, 70, 7], ["independence/loneliness"]);
@@ -174,8 +174,8 @@ Experiment.skills = {
             properties: ["physical", "stamina", "buff", "penalty"],
             description: "Increase focus/presence and decreased accuracy",
             code() {
-                basicModifier("Imperfect Abomination buff", "Focus, and presence increase", { caster: this, target: this, duration: 2, properties: ["physical", "buff"], stats: { focus: 20, presence: 30 }, listeners: { turnEnd: true }, passive: true });
-                basicModifier("Imperfect Abomination penalty", "Accuracy decrease", { caster: this, target: this, duration: 2, properties: ["physical", "penalty"], stats: { accuracy: -10 }, listeners: { turnEnd: true }, passive: true, penalty: true });
+                basicModifier("Imperfect Abomination buff", "Focus, and presence increase", { caster: this, target: this, properties: ["physical", "buff"], stats: { focus: 20, presence: 30 }, passive: true });
+                basicModifier("Imperfect Abomination penalty", "Accuracy decrease", { caster: this, target: this, properties: ["physical", "penalty"], stats: { accuracy: -10 }, passive: true, penalty: true });
             }
         },
         {
@@ -183,9 +183,16 @@ Experiment.skills = {
             properties: ["physical", "stamina", "buff", "penalty"],
             description: "Increase accuracy/focus and decreased resist/presence",
             code() {
-                basicModifier("Forced Mercenary buff", "Accuracy, and focus increase", { caster: this, target: this, duration: 2, properties: ["physical", "buff"], stats: { accuracy: 10, focus: 10 }, listeners: { turnEnd: true }, passive: true});
-                basicModifier("Forced Mercenary penalty", "Resist, and presence decrease", { caster: this, target: this, duration: 2, properties: ["physical", "penalty"], stats: { resist: -5, presence: -20 }, listeners: { turnEnd: true }, passive: true, penalty: true });
+                basicModifier("Forced Mercenary buff", "Accuracy, and focus increase", { caster: this, target: this, properties: ["physical", "buff"], stats: { accuracy: 10, focus: 10 }, passive: true});
+                basicModifier("Forced Mercenary penalty", "Resist, and presence decrease", { caster: this, target: this, properties: ["physical", "penalty"], stats: { resist: -5, presence: -20 }, passive: true, penalty: true });
             }
         }
     ]
 }
+
+Experiment.defaultSkills = [
+    { category: 'special', name: 'Brain Eating' },
+    { category: 'basic', name: 'Tooth and Nail' },
+    { category: 'secondary', name: 'Forced Mercenary' },
+    { category: 'passive', name: 'Imperfect Abomination' }
+];

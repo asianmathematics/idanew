@@ -149,14 +149,77 @@ function removeModifier(modifier) {
     if (modifier.vars.parent?.vars) modifier.vars.parent.vars.child.length > 1 ? (index = modifier.vars.parent.vars.child.indexOf(modifier)) > -1 && modifier.vars.parent.vars.child.splice(index, 1) : delete modifier.vars.parent.vars.child;
 }
 
-function basicModifier(name, description, vari) {
+function basicModifier(name, description, vari, dur = 'target') {
     return new Modifier(name, description, vari,
         function() {},
         function(context) {
-            if (this.vars.target === context.unit) this.vars.duration--;
+            if (this.vars[dur] === context.unit) this.vars.duration--;
             return this.vars.duration <= 0;
         }
     );
+}
+
+function stunModifier(name, vari, dur = 'target') {
+    return new Modifier(name, "Stun", vari,
+        function() {
+            if (eventState.stun.length) handleEvent("stun", { unit: this.vars.target, stun: true });
+            this.vars.target.stun++;
+            if (this.vars.target.stun) {
+                for (const mod of this.vars.modifiers = modifiers.filter(m => m.vars.caster === this.vars.target && m.vars.focus)) {
+                    currentUnit.push(this.vars.caster);
+                    currentAction.push(mod);
+                    mod.cancel(true);
+                    currentAction.pop();
+                    currentUnit.pop();
+                }
+            }
+        },
+        function(context) {
+            if (this.vars[dur] === context.unit) this.vars.duration--;
+            return this.vars.duration <= 0;
+        },
+        function(cancel, temp) {
+            if (!temp) {
+                if (this.vars.cancel && this.vars.applied) {
+                    this.vars.applied = false;
+                    for (const listener of this.vars.cancelListeners) {
+                        this.vars.listeners[listener] = false;
+                        const i = eventState[listener].indexOf(this);
+                        if (i > -1) eventState[listener].splice(i, 1);
+                    }
+                    if (eventState.stun.length) handleEvent("stun", { unit: this.vars.target, stun: false });
+                    this.vars.target.stun--;
+                    if (!this.vars.target.stun) {
+                        for (const mod of this.vars.modifiers) {
+                            currentUnit.push(this.vars.caster);
+                            currentAction.push(mod);
+                            mod.cancel(false);
+                            currentAction.pop();
+                            currentUnit.pop();
+                        }
+                        this.vars.modifiers = []
+                    }
+                } else if (!this.vars.cancel && !this.vars.applied) {
+                    this.vars.applied = true;
+                    for (const listener of this.vars.cancelListeners) {
+                        this.vars.listeners[listener] = true;
+                        eventState[listener].push(this);
+                    }
+                    if (eventState.stun.length) handleEvent("stun", { unit: this.vars.target, stun: true });
+                    this.vars.target.stun++;
+                    if (this.vars.target.stun) {
+                        for (const mod of this.vars.modifiers = modifiers.filter(m => m.vars.caster === this.vars.target && m.vars.focus)) {
+                            currentUnit.push(this.vars.caster);
+                            currentAction.push(mod);
+                            mod.cancel(true);
+                            currentAction.pop();
+                            currentUnit.pop();
+                        }
+                    }
+                }
+            }
+        }
+    )
 }
 
 new Modifier("Reapply Passive", "Reapplies passive modifiers on unit revive",
@@ -643,4 +706,4 @@ function unitByStat(units, statName, type = 'number', max = true, count = 1) {
     return sorted.slice(0, count);
 }
 
-export { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentUnit, currentAction, elements, eventState };
+export { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, stunModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentUnit, currentAction, elements, eventState };

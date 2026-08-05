@@ -1,7 +1,7 @@
 import { unitFilter, Modifier, handleEvent, removeModifier, basicModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentUnit, currentAction, elements, eventState } from '../combatDictionary.js';
 import { Unit, allUnits } from './unit.js';
 
-export const FourArcher = new Unit("4 (Archer)", [800, 36, 16, 50, 80, 70, 140, 85, 160, "back", 110, 40, 7, 160, 24]);
+export const FourArcher = new Unit("4 (Archer)", [800, 36, 16, 50, 80, 70, 140, 85, 160, "back", 110, 40, 7, 160, 24], ["perfection/precision"]);
 
 FourArcher.description = "3-star mystic backline unit with high crit/debuff resist but low in everything else, capable of manipulating RNG to buff self and debuff enemies."
 
@@ -13,7 +13,7 @@ FourArcher.skills = {
             cost: { mana: 40 },
             description: "Deals a critical hit to a single target, 99% chance to ignore half of defense",
             target() { this.team === "player" ? selectTarget(this.skills.special, [1, true, unitFilter("enemy", "front", false)]) : this.skills.special.code.call(this, randTarget(unitFilter("player", "front", false))) },
-            code(target) { damage(this, target, [[4]], { defenders: { defense: { div: resistDebuff(this, target)[0] < 2 ? 1 : 2 } } }) }
+            code(target) { damage(this, target, [[4]], { defenders: [{ defense: { div: resistDebuff(this, target)[0] < 2 ? 1 : 2 } }] }) }
         },
         {
             name: "Unnatural Luck",
@@ -132,7 +132,7 @@ FourArcher.skills = {
             description: "Makes a guaranteed hit to a single target, 99% chance to ignore some defense",
             code() {
                 const target = randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false));
-                attack(this, target, 1, { max: [[.5]], defenders: { defense: { bonus: resistDebuff(this, target)[0] < 2 ? 0 : -15 } } });
+                attack(this, target, 1, { max: [[.5]], defenders: [{ defense: { bonus: resistDebuff(this, target)[0] < 2 ? 0 : -15 } }] });
             }
         },
         {
@@ -155,7 +155,7 @@ FourArcher.skills = {
         },
         {
             name: "Lucky Aura",
-            properties: ["physical", "buff"],
+            properties: ["mystic", "buff"],
             description: "Increases 4 random ally accuracy/evasion/focus/resist/presence for one of their turns",
             code() { for (const target of randTarget(unitFilter(this.team, '', false), 4, true)) basicModifier("Lucky Aura", "Increases accuracy/evasion/focus/resist/presence", { caster: this, target, duration: 2, properties: ["mystic", "mana", "buff"], stats: { accuracy: 25, evasion: 45, focus: 35, resist: 40, presence: 40 }, listeners: { turnStart: true } }) }
         },
@@ -334,7 +334,6 @@ FourArcher.skills = {
             reduction: { mana: 40, manaRegen: 8 },
             description: "On damage, chance to split the attack to 3 other targets",
             code(targets) {
-                resetStat(this, ['manaRegen']);
                 new Modifier("Multi-shot", "When making an attack, chance to split the attack towards up to 3 other targets",
                     { caster: this, target: this, properties: ["mystic", "mana", "attack", "multi-target"], listeners: { singleDamage: true }, cancelListeners: ['singleDamage'], reduction: this.skills.passive.reduction, passive: true, attacking: 0},
                     function() {},

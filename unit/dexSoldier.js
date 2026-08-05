@@ -1,4 +1,4 @@
-import { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentUnit, currentAction, elements, eventState } from '../combatDictionary.js';
+import { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, stunModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentUnit, currentAction, elements, eventState } from '../combatDictionary.js';
 import { Unit, allUnits } from './unit.js';
 
 export const DexSoldier = new Unit("DeX (Soldier)", [1800, 25, 55, 70, 50, 60, 80, 55, 200, "front", 250, 150, 27], ["perfection/precision"]);
@@ -121,7 +121,6 @@ DexSoldier.skills = {
             properties: ["physical", "heal"],
             description: `Moderately heals (~10% max HP) at start of turn for next 3 turns`,
             code() {
-                logAction(`${this.name} holds onto hope.`, "buff")
                 new Modifier("Determination", `Moderately heals at start of turn`,
                     { caster: this, target: this, duration: 3, properties: ["physical", "heal"], listeners: { turnStart: true }, focus: true },
                     function() {},

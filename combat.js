@@ -394,6 +394,48 @@ function initInspectorControls() {
 // AUTO-BATTLE COMBAT TICK
 // ============================================
 
+function updateTimersOnly(units) {
+    units.forEach(unit => {
+        // Calculate progress percentage (0% to 100%)
+        // Capped between 0 and 100 so it doesn't overshoot visually
+        const timerProgress = Math.max(0, Math.min(100, 100 - (unit.timer / 10)));
+        const isReady = unit.timer <= 0;
+
+        // 1. Update Unit Card
+        const unitCards = document.querySelectorAll('.unit');
+        unitCards.forEach(card => {
+            if (card.querySelector('.unit-name')?.textContent === unit.name) {
+                const timerBar = card.querySelector('.timer-bar');
+                const readyTextLabel = card.querySelector('.stat-row:last-child .stat-label');
+
+                if (timerBar) timerBar.style.width = `${timerProgress}%`;
+                if (readyTextLabel) readyTextLabel.textContent = isReady ? 'Ready!' : 'Charging...';
+            }
+        });
+
+        // 2. Update Inspector Card
+        const inspectorCards = document.querySelectorAll('.inspector-unit-card');
+        inspectorCards.forEach(card => {
+            if (card.dataset.unitName === unit.name) {
+                const timerDiv = Array.from(card.querySelectorAll('.inspector-mini-bars div'))
+                                      .find(div => div.textContent.startsWith('Timer:'));
+                if (timerDiv) {
+                    timerDiv.textContent = `Timer: ${Math.round(timerProgress)}%`;
+                }
+            }
+        });
+    });
+}
+
+const syncTimerUI = (aliveUnits) => {
+    return new Promise(resolve => {
+        requestAnimationFrame(() => {
+            updateTimersOnly(aliveUnits);
+            resolve();
+        });
+    });
+};
+
 export async function combatTick() {
     updateBattleDisplay();
     await sleep(getDelay(500));
@@ -411,9 +453,10 @@ export async function combatTick() {
         const alive = allUnits.filter(u => u.hp);
         while (turn == undefined) {
             const list = alive.filter(u => u.timer <= 0);
-            if (!list.length) for (const unit of alive) unit.timer -= unit.speed, await sleep(getDelay(12));
+            if (!list.length) for (const unit of alive) unit.timer -= unit.speed;
             else turn = list.reduce((low, cur) => cur.timer < low.timer ? cur : low);
-            updateBattleDisplay();
+            await syncTimerUI(alive);
+            await sleep(getDelay(120))
         }
         logAction(`<strong>Turn ${turnCounter++}: ${turn.name}'s turn</strong>`, 'turn');
         if (eventState.turnStart.length) handleEvent('turnStart', { unit: turn });

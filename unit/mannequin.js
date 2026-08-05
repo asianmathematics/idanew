@@ -1,8 +1,8 @@
-import { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentUnit, currentAction, elements, eventState } from '../combatDictionary.js';
+import { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, stunModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentUnit, currentAction, elements, eventState } from '../combatDictionary.js';
 import { FourArcher } from './fourArcher.js';
 import { Unit, allUnits } from './unit.js';
 
-export const Mannequin = new Unit("Mannnequin", [800, 45, 22, 140, 130, 150, 70, 145, 50, "mid", 120, 100, 10], ["perfection/precision", "independence/loneliness", "passion/hatred"]);
+export const Mannequin = new Unit("Mannequin", [800, 45, 22, 140, 130, 150, 70, 145, 50, "mid", 120, 100, 10], ["perfection/precision", "independence/loneliness", "passion/hatred"]);
 
 Mannequin.description = "3-star physical midline unit with high offensive stats and speed but low defense and crit/debuff resist. Has strong attacks with reload mechanics."
 
@@ -57,7 +57,7 @@ Mannequin.skills = {
         },
         {
             name: "Focus Fire",
-            properties: ["physical", "attack", "pseudo-resource"],
+            properties: ["physical", "stamina", "attack", "pseudo-resource"],
             cost: { stamina: 40 },
             description: "Attacks a single target 4 times with increased attack/accuracy/focus, adds two attacks and extra attack if reloaded",
             target() { this.team === "player" ? selectTarget(this.skills.special, [1, true, unitFilter("enemy", "front", false)]) : this.skills.special.code.call(this, randTarget(unitFilter("player", "", false))) },

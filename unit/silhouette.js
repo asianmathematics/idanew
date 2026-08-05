@@ -1,4 +1,4 @@
-import { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentUnit, currentAction, elements, eventState } from '../combatDictionary.js';
+import { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, stunModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentUnit, currentAction, elements, eventState } from '../combatDictionary.js';
 import { Unit, createUnit, cloneUnit, allUnits } from './unit.js';
 
 export const Silhouette = new Unit("Silhouette", [650, 24, 25, 110, 160, 135, 140, 75, 50, "mid", 80, 80, 10, 100, 16], ["independence/loneliness"]);
@@ -13,7 +13,7 @@ Silhouette.skills = {
             cost: { stamina: 10, mana: 20, position: "front" },
             description: "Makes 4 attacks at a single target with increased accuracy and damage",
             target() { this.team === "player" ? selectTarget(this.skills.special, [1, true, unitFilter("enemy", "front", false)]) : this.skills.special.code.call(this, randTarget(unitFilter("player", "front", false))) },
-            code(target) { attack(this, target, 4, { attacker: { damage: { bonus: 18 }, accuracy: { bonus: 50 } } }) }
+            code(target) { attack(this, target, 4, { attacker: { damage: { bonus: 36 }, accuracy: { bonus: 50 } } }) }
         },
         {
             name: "Ball of Darkness",
@@ -24,7 +24,7 @@ Silhouette.skills = {
             code(target) {
                 let hit = attack(this, target, 1, { attacker: { accuracy: { mult: 2 } } }), t = target;
                 while (hit[0] > 0) {
-                    let list = unitFilter(this.team === "player" ? "enemy" : "player", "", false).filter(u => u !== t[0]);
+                    let list = unitFilter(this.team === "player" ? "enemy" : "player", "front", false).filter(u => u !== t[0]);
                     if (!list.length) break;
                     hit = attack(this, t = randTarget(list, 1, true), 1, { attacker: { accuracy: { mult: 2 } } });
                 }
@@ -41,7 +41,7 @@ Silhouette.skills = {
                     { caster: this, target: this, duration: 5, properties: ["physical", "mystic", "buff", "debuff", "positional"], listeners: { turnEnd: true, attackStart: true, resistStart: true }, cancelListeners: ['attackStart', 'resistStart'], focus: true, debuffing: 0 },
                     function() {},
                     function(context) {
-                        if (this.vars.caster.position === "back" && context.defenders?.includes(this.vars.caster) && !this.vars.debuffing++ && resistDebuff(this.vars.caster, [context.attacker])[this.vars.debuffing = 0] >= 2) context.event === "attackStart" ? context.calcMods.attacker = { ...context.calcMods.attacker, accuracy: context.calcMods?.attacker?.accuracy - 40 || context.attacker.accuracy - 40 } : context.calcMods.attacker = { ...context.calcMods.attacker, focus: context.calcMods?.attacker?.focus - 40 || context.attacker.focus - 40 };
+                        if (this.vars.caster.position === "back" && context.defenders?.includes(this.vars.caster) && !this.vars.debuffing++ && resistDebuff(this.vars.caster, [context.attacker])[this.vars.debuffing = 0] >= 2) context.event === "attackStart" ? context.calcMods.attacker = { ...context.calcMods.attacker, accuracy: { ...context.calcMods?.attacker?.accuracy, bonus: (context.calcMods?.attacker?.accuracy?.bonus || 0) - 40} } : context.calcMods.attacker = { ...context.calcMods.attacker, focus: { ...context.calcMods?.attacker?.focus, bonus: (context.calcMods?.attacker?.focus?.bonus || 0) - 40} };
                         else if (this.vars.caster.position === "front" && context.attacker === this.vars.caster && !this.vars.debuffing++) for (const defender of context.defenders) if (resistDebuff(this.vars.caster, [defender])[this.vars.debuffing = 0] >= 2) (context.calcMods.all ??= { reroll: 0 }).reroll++;
                         if (context.unit === this.vars.caster) this.vars.duration--;
                         return this.vars.duration <= 0;
@@ -170,13 +170,13 @@ Silhouette.skills = {
             }
         },
         {
-            name: "Accursed Linage",
+            name: "Accursed Lineage",
             properties: ["physical", "stamina", "mystic", "mana", "revive"],
             cost: { stamina: 15, mana: 25 },
             description: `Revives for the next 6 turns, second and later revives unsummon a shadow and fails if no shadows can be unsummoned`,
             code() {
                 logAction(`${this.name} hangs around the borders of life and death!`, "buff")
-                new Modifier("Accursed Linage", `Spend shadow summon to revive, first revive is free`,
+                new Modifier("Accursed Lineage", `Spend shadow summon to revive, first revive is free`,
                     { caster: this, target: this, duration: 5, properties: ["physical", "mystic", "revive"], listeners: { turnStart: true, unitChange: true }, cancelListeners: ['unitChange'], uses: 1 },
                     function() {},
                     function(context) {
@@ -218,14 +218,14 @@ Silhouette.skills = {
             properties: ["physical", "mystic", "attack"],
             cost: { position: "front" },
             description: "Makes 2 attacks at a single target with increased accuracy and damage",
-            code() { attack(this, randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false)), 2, { attacker: { damage: { bonus: 18 }, accuracy: { bonus: 50 } } }) }
+            code() { attack(this, randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false)), 2, { attacker: { damage: { bonus: 36 }, accuracy: { bonus: 50 } } }) }
         },
         {
             name: "Ball of Darkness",
             properties: ["physical", "mystic", "attack", "multi-target"],
             cost: { position: "back" },
             description: "Makes an attack at a random target with increased accuracy. On hit, randomly targets another enemy with the attack and continues until miss or all units are hit",
-            code() { for (const target of unitFilter(this.team === "player" ? "enemy" : "player", "front", false).map(val => ({ val, rand: Math.random() })).sort((a, b) => a.rand - b.rand).map(({ val }) => val)) if (!(attack(this, [target], 1, { attacker: { accuracy: { bonus: 50 } } }) > 0)) break; }
+            code() { for (const target of unitFilter(this.team === "player" ? "enemy" : "player", "front", false).map(val => ({ val, rand: Math.random() })).sort((a, b) => a.rand - b.rand).map(({ val }) => val)) if (!(attack(this, [target], 1, { attacker: { accuracy: { mult: 2 } } }) > 0)) break; }
         },
         {
             name: "Summon Shadow",
@@ -291,12 +291,12 @@ Silhouette.skills = {
             properties: ["attack"],
             cost: { position: "front" },
             description: "Attacks a single target with increased accuracy and damage",
-            code() { attack(this, randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false)), 1, { attacker: { damage: { bonus: 18 }, accuracy: { bonus: 50 } } }) }
+            code() { attack(this, randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false)), 1, { attacker: { damage: { bonus: 36 }, accuracy: { bonus: 50 } } }) }
         },
         {
             name: "Ball of Darkness",
             properties: ["attack", "multi-target"],
-            cost: { position: "Back" },
+            cost: { position: "back" },
             description: "Attacks a single target with double accuracy, attacks again on hit",
             code() { if (attack(this, randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false)), 1, { attacker: { accuracy: { mult: 2 } } })) attack(this, randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false)), 1, { attacker: { accuracy: { mult: 2 } } }) }
         },
@@ -311,7 +311,7 @@ Silhouette.skills = {
                     { caster: this, target: this, duration: 2, properties: ["physical", "mystic", "buff", "debuff", "positional"], listeners: { turnEnd: true, attackStart: true, resistStart: true }, cancelListeners: ['attackStart', 'resistStart'], focus: true, debuffing: 0 },
                     function() {},
                     function(context) {
-                        if (this.vars.caster.position === "back" && context.defenders?.includes(this.vars.caster) && !this.vars.debuffing++ && resistDebuff(this.vars.caster, [context.attacker])[this.vars.debuffing = 0] > 24) context.event === "attackStart" ? context.calcMods.attacker = { ...context.calcMods.attacker, accuracy: context.calcMods?.attacker?.accuracy - 40 || context.attacker.accuracy - 40 } : context.calcMods.attacker = { ...context.calcMods.attacker, focus: context.calcMods?.attacker?.focus - 40 || context.attacker.focus - 40 };
+                        if (this.vars.caster.position === "back" && context.defenders?.includes(this.vars.caster) && !this.vars.debuffing++ && resistDebuff(this.vars.caster, [context.attacker])[this.vars.debuffing = 0] > 24) context.event === "attackStart" ? context.calcMods.attacker = { ...context.calcMods.attacker, accuracy: { ...context.calcMods?.attacker?.accuracy, bonus: (context.calcMods?.attacker?.accuracy?.bonus || 0) - 40} } : context.calcMods.attacker = { ...context.calcMods.attacker, focus: { ...context.calcMods?.attacker?.focus, bonus: (context.calcMods?.attacker?.focus?.bonus || 0) - 40} };
                         else if (this.vars.caster.position === "front" && context.attacker === this.vars.caster && !this.vars.debuffing++) for (const defender of context.defenders) if (resistDebuff(this.vars.caster, [defender])[this.vars.debuffing = 0] > 24) (context.calcMods.all ??= { reroll: 0 }).reroll++;
                         if (context.unit === this.vars.caster) this.vars.duration--;
                         return this.vars.duration <= 0;
@@ -346,7 +346,7 @@ Silhouette.skills = {
                     { caster: this, target: this, properties: ["physical", "mystic", "buff", "debuff", "positional"], stats: { evasion: 20, focus: 10, presence: 20 }, listeners: { attackStart: true, resistStart: true }, cancelListeners: ['attackStart', 'resistStart'], reduction: this.skills.passive.reduction, focus: true, passive: true, debuffing: 0 },
                     function() {},
                     function(context) {
-                        if (this.vars.caster.position === "back" && context.defenders.includes(this.vars.caster) && !this.vars.debuffing++ && resistDebuff(this.vars.caster, [context.attacker])[this.vars.debuffing = 0] > 33) context.event === "attackStart" ? context.calcMods.attacker = { ...context.calcMods.attacker, accuracy: context.calcMods?.attacker?.accuracy - 40 || context.attacker.accuracy - 40 } : context.calcMods.attacker = { ...context.calcMods.attacker, focus: context.calcMods?.attacker?.focus - 40 || context.attacker.focus - 40 };
+                        if (this.vars.caster.position === "back" && context.defenders.includes(this.vars.caster) && !this.vars.debuffing++ && resistDebuff(this.vars.caster, [context.attacker])[this.vars.debuffing = 0] > 33) context.event === "attackStart" ? context.calcMods.attacker = { ...context.calcMods.attacker, accuracy: { ...context.calcMods?.attacker?.accuracy, bonus: (context.calcMods?.attacker?.accuracy?.bonus || 0) - 40} } : context.calcMods.attacker = { ...context.calcMods.attacker, focus: { ...context.calcMods?.attacker?.focus, bonus: (context.calcMods?.attacker?.focus?.bonus || 0) - 40} };
                         else if (this.vars.caster.position === "front" && context.attacker === this.vars.caster && !this.vars.debuffing++) for (const defender of context.defenders) if (resistDebuff(this.vars.caster, [defender])[this.vars.debuffing = 0] > 33) (context.calcMods.all ??= { reroll: 0 }).reroll++;
                     }
                 )
@@ -418,12 +418,12 @@ Silhouette.skills = {
             }
         },
         {
-            name: "Accursed Linage",
+            name: "Accursed Lineage",
             properties: ["physical", "stamina", "mystic", "mana", "revive"],
             reduction: { stamina: 10, mana: 20 },
             description: `Revives at the cost of unsummmoning a shadow, fails if no shadow to unsummon`,
             code() {
-                new Modifier("Accursed Linage", `Spend shadow summon to revive`,
+                new Modifier("Accursed Lineage", `Spend shadow summon to revive`,
                     { caster: this, target: this, properties: ["physical", "mystic", "revive"], listeners: { unitChange: true }, cancelListeners: ['unitChange'], reduction: this.skills.passive.reduction, passive: true },
                     function() {},
                     function(context) {
@@ -456,7 +456,7 @@ Silhouette.skills = {
                     { caster: this, target: this, properties: ["physical", "mystic", "buff", "debuff", "positional"], stats: { evasion: 30, focus: 15, presence: 30 }, listeners: { attackStart: true, resistStart: true }, cancelListeners: ['attackStart', 'resistStart'], reduction: this.skills.augment.reduction, focus: true, passive: true, debuffing: 0 },
                     function() {},
                     function(context) {
-                        if (this.vars.caster.position === "back" && context.defenders.includes(this.vars.caster) && !this.vars.debuffing++ && resistDebuff(this.vars.caster, [context.attacker])[this.vars.debuffing = 0] > 33) context.event === "attackStart" ? context.calcMods.attacker = { ...context.calcMods.attacker, accuracy: context.calcMods?.attacker?.accuracy - 40 || context.attacker.accuracy - 40 } : context.calcMods.attacker = { ...context.calcMods.attacker, focus: context.calcMods?.attacker?.focus - 40 || context.attacker.focus - 40 };
+                        if (this.vars.caster.position === "back" && context.defenders.includes(this.vars.caster) && !this.vars.debuffing++ && resistDebuff(this.vars.caster, [context.attacker])[this.vars.debuffing = 0] > 33) context.event === "attackStart" ? context.calcMods.attacker = { ...context.calcMods.attacker, accuracy: { ...context.calcMods?.attacker?.accuracy, bonus: (context.calcMods?.attacker?.accuracy?.bonus || 0) - 40} } : context.calcMods.attacker = { ...context.calcMods.attacker, focus: { ...context.calcMods?.attacker?.focus, bonus: (context.calcMods?.attacker?.focus?.bonus || 0) - 40} };
                         else if (this.vars.caster.position === "front" && context.attacker === this.vars.caster && !this.vars.debuffing++) for (const defender of context.defenders) if (resistDebuff(this.vars.caster, [defender])[this.vars.debuffing = 0] > 33) (context.calcMods.all ??= { reroll: 0 }).reroll++;
                     }
                 )
@@ -534,7 +534,7 @@ Silhouette.frontDefaultSkills = [
     { category: 'special', name: 'Friends with the Shadows' },
     { category: 'basic', name: 'Summon Shadow' },
     { category: 'secondary', name: 'Shadow Shift' },
-    { category: 'passive', name: 'Accursed Linage' },
+    { category: 'passive', name: 'Accursed Lineage' },
     { category: 'augment', name: 'Fear of the Dark' }
 ];
 
@@ -542,7 +542,7 @@ Silhouette.backDefaultSkills = [
     { category: 'special', name: 'Friends with the Shadows' },
     { category: 'basic', name: 'Summon Shadow' },
     { category: 'secondary', name: 'Shadow Shift' },
-    { category: 'passive', name: 'Accursed Linage' },
+    { category: 'passive', name: 'Accursed Lineage' },
     { category: 'augment', name: 'Fear of the Dark' }
 ];
 
