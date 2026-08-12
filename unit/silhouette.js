@@ -11,9 +11,9 @@ Silhouette.skills = {
             name: "Shadow Blade",
             properties: ["physical", "stamina", "mystic", "mana", "attack"],
             cost: { stamina: 10, mana: 20, position: "front" },
-            description: "Makes 4 attacks at a single target with increased accuracy and damage",
+            description: "Makes 4 attacks at a single target with increased accuracy and attack",
             target() { this.team === "player" ? selectTarget(this.skills.special, [1, true, unitFilter("enemy", "front", false)]) : this.skills.special.code.call(this, randTarget(unitFilter("player", "front", false))) },
-            code(target) { attack(this, target, 4, { attacker: { damage: { bonus: 36 }, accuracy: { bonus: 50 } } }) }
+            code(target) { attack(this, target, 4, { attacker: { attack: { bonus: 36 }, accuracy: { bonus: 50 } } }) }
         },
         {
             name: "Ball of Darkness",
@@ -217,8 +217,8 @@ Silhouette.skills = {
             name: "Shadow Blade",
             properties: ["physical", "mystic", "attack"],
             cost: { position: "front" },
-            description: "Makes 2 attacks at a single target with increased accuracy and damage",
-            code() { attack(this, randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false)), 2, { attacker: { damage: { bonus: 36 }, accuracy: { bonus: 50 } } }) }
+            description: "Makes 2 attacks at a single target with increased accuracy and attack",
+            code() { attack(this, randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false)), 2, { attacker: { attack: { bonus: 36 }, accuracy: { bonus: 50 } } }) }
         },
         {
             name: "Ball of Darkness",
@@ -290,8 +290,8 @@ Silhouette.skills = {
             name: "Shadow Blade",
             properties: ["attack"],
             cost: { position: "front" },
-            description: "Attacks a single target with increased accuracy and damage",
-            code() { attack(this, randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false)), 1, { attacker: { damage: { bonus: 36 }, accuracy: { bonus: 50 } } }) }
+            description: "Attacks a single target with increased accuracy and attack",
+            code() { attack(this, randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false)), 1, { attacker: { attack: { bonus: 36 }, accuracy: { bonus: 50 } } }) }
         },
         {
             name: "Ball of Darkness",
@@ -546,7 +546,7 @@ Silhouette.backDefaultSkills = [
     { category: 'augment', name: 'Fear of the Dark' }
 ];
 
-Silhouette.switchPosition = function() {
+Silhouette.switchPosition = function(silent = false) {
     if (this.position === "back") {
         this.position = "front";
         this.base.accuracy = 140;
@@ -565,8 +565,8 @@ Silhouette.switchPosition = function() {
         this.skills = {...this.backSkills}
     }
     logAction(`${this.name} shifts to the ${this.position}line.`, "info");
-    resetStat(this, ["attack", "evasion", "resist", "speed", "presence"]);
-    if (eventState.positionChange.length) handleEvent('positionChange', { unit: this, position: this.position });
+    resetStat(this, ["accuracy", "evasion", "focus", "resist", "speed"]);
+    if (!silent && eventState.positionChange.length) handleEvent('positionChange', { unit: this, position: this.position });
 }
 
 const shadowSkills = {

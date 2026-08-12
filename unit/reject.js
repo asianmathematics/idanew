@@ -162,7 +162,7 @@ Reject.skills = {
 
 Reject.defaultSkills = [
     { category: 'special', name: 'Rejected by All' },
-    { category: 'basic', name: 'Tooth and Nail' },
+    { category: 'basic', name: 'Bite' },
     { category: 'secondary', name: 'Faded Concept' },
     { category: 'passive', name: 'Regeneration' }
 ];

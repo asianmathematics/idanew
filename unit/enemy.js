@@ -109,7 +109,7 @@ enemy.skills = {
             properties: ["physical", "debuff"],
             description: "Chance to decrease target focus and resist and double the chance for caster to be targeted by target for a 1 turn, can target backline",
             code() {
-                let target = randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false)), will = resistDebuff(this, target)[0];
+                let target = randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "", false)), will = resistDebuff(this, target)[0];
                 if (will >= 20) {
                     logAction(`${this.name} distracts ${target[0].name}`, "debuff");
                     new Modifier("Taunt", "Decreases target focus, and resist and doubles the chance for caster to be targeted by target",

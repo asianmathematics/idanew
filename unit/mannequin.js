@@ -354,7 +354,7 @@ Mannequin.backDefaultSkills = [
     { category: 'augment', name: 'A Wish to be an Artificial' }
 ];
 
-Mannequin.switchPosition = function() {
+Mannequin.switchPosition = function(silent = false) {
     if (this.position === "back") {
         this.position = "front";
         this.base.attack = 55;
@@ -374,5 +374,5 @@ Mannequin.switchPosition = function() {
     }
     logAction(`${this.name} moves to the ${this.position}line.`, "info");
     resetStat(this, ["attack", "evasion", "resist", "speed", "presence"]);
-    if (eventState.positionChange.length) handleEvent('positionChange', { unit: this, position: this.position });
+    if (!silent && eventState.positionChange.length) handleEvent('positionChange', { unit: this, position: this.position });
 }

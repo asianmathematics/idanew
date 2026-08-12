@@ -682,10 +682,11 @@ function assignEnemySkills(newUnit, template) {
     };
     // Handle Midline Units (Silhouette, Mannequin)
     if (template.base.position === 'mid') {
-        newUnit.position = Math.random() > 0.5 ? 'front' : 'back'; 
+        newUnit.position = 'back'; 
         newUnit.frontSkills = getLoadoutForPosition('front');
         newUnit.backSkills = getLoadoutForPosition('back');
-        newUnit.skills = newUnit.position === 'front' ? {...newUnit.frontSkills} : {...newUnit.backSkills};
+        newUnit.skills = {...newUnit.backSkills};
+        if (Math.random() > 0.5) newUnit.switchPosition(true);
     } else newUnit.skills = getLoadoutForPosition(newUnit.position);
     // Initialize passives and augments safely
     newUnit.skills.passive?.code?.call(newUnit);
@@ -768,13 +769,14 @@ function initializeCombatFromSquad(squadData) {
         // Map equipped skills to their categories (e.g., newUnit.skills.basic = <skillObj>)
         newUnit.skills = {};
         if (newUnit.base.position === 'mid') {
-            newUnit.position = unitConfig.startingPosition;
+            newUnit.position = "back";
             newUnit.frontSkills = {};
             newUnit.backSkills = {};
             for (const skill of unitConfig.skills.front ) newUnit.frontSkills[skill.category] = ref.skills[skill.category].find(s => s.name === skill.name);
             for (const skill of unitConfig.skills.back ) newUnit.backSkills[skill.category] = ref.skills[skill.category].find(s => s.name === skill.name);
             // Set initial skills based on starting position
-            newUnit.skills = unitConfig.startingPosition === 'front' ? {...newUnit.frontSkills} : {...newUnit.backSkills};
+            newUnit.skills = {...newUnit.backSkills};
+            if (unitConfig.startingPosition === "front") newUnit.switchPosition(true);
         } else for (const skill of unitConfig.skills ) newUnit.skills[skill.category] = ref.skills[skill.category].find(s => s.name === skill.name);
         newUnit.skills.passive?.code?.call?.(newUnit);
         newUnit.skills.augment?.code?.call?.(newUnit);
