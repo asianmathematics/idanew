@@ -14,7 +14,7 @@ import { Dreamer } from './unit/dreamer.js';
 import { Experiment } from './unit/experiment.js';
 import { Reject } from './unit/reject.js';
 import { Revolutionary } from './unit/revolutionary.js';*/
-import { Modifier, handleEvent, removeModifier, basicModifier, sleep, logAction, selectTarget, unitFilter, showMessage, attack, resistDebuff, resetStat, regenerateResources, crit, damage, randTarget, enemyTurn, cleanupGlobalHandlers, modifiers, currentUnit, currentAction, eventState, resourceChange } from './combatDictionary.js';
+import { Modifier, handleEvent, removeModifier, basicModifier, sleep, logAction, selectTarget, unitFilter, showMessage, attack, resistDebuff, resetStat, regenerateResources, crit, damage, randTarget, enemyTurn, cleanupGlobalHandlers, modifiers, currentAction, eventState, resourceChange } from './combatDictionary.js';
 import { Unit, createUnit, cloneUnit, allUnits } from './unit/unit.js';
 
 let turnCounter = 1;
@@ -101,7 +101,7 @@ function updateBattleDisplay() {
 function renderUnitCard(unit, isEnemy = false, inFrontline = false) {
     const card = document.createElement('div');
     const isDefeated = unit.hp <= 0;
-    const isCurrentTurn = unit.name === currentUnit[0]?.name;
+    const isCurrentTurn = unit.name === currentAction[0]?.[1]?.name;
     const isStunned = unit.stun;
     const isSpecialReady = unit.specialReady && !isDefeated;
     
@@ -462,7 +462,6 @@ export async function combatTick() {
         if (eventState.turnStart.length) handleEvent('turnStart', { unit: turn });
     }
     if (!turn.stun) {
-        currentUnit.push(turn);
         regenerateResources(turn);
         updateBattleDisplay();
         
@@ -491,7 +490,7 @@ export async function combatTick() {
             }
         }
         if (turn.team === 'enemy') enemyTurn(turn);
-        currentUnit.pop().timer += 1000;
+        currentAction.pop()[1].timer += 1000;
     } else {
         logAction(`${turn.name}'s turn was skipped due to being stunned!`, 'miss');
         if (eventState.turnEnd.length) handleEvent('turnEnd', { unit: turn });
@@ -506,7 +505,7 @@ function executeAutoAction(unit, action) {
         if (unit.skills[action].properties.includes('physical')) unit.previousAction[0] = true;
         if (unit.skills[action].properties.includes('mystic')) unit.previousAction[1] = true;
         if (unit.skills[action].properties.includes('techno')) unit.previousAction[2] = true;
-        currentAction.push(unit.skills[action]);
+        currentAction.push([unit.skills[action], unit]);
         unit.skills[action].code.call(unit);
         currentAction.pop();
     }
@@ -526,10 +525,10 @@ function executeBoth(unit) {
     }
     if (JSON.stringify(cost) === '{}' || resourceChange(unit, cost, false)) {
         unit.previousAction = [true, true, true];
-        currentAction.push(unit.skills.basic);
+        currentAction.push([unit.skills.basic, unit]);
         unit.skills.basic.code.call(unit);
         currentAction.pop();
-        currentAction.push(unit.skills.secondary);
+        currentAction.push([unit.skills.secondary, unit]);
         unit.skills.secondary.code.call(unit);
         currentAction.pop();
         unit.specialReady = false;
@@ -548,7 +547,7 @@ function executeSpecialAction(unit, specialSkill) {
         }
         logAction(`<strong>${unit.name}'s turn$' (Special Interrupt!)</strong>`, 'turn');
         if (eventState.turnStart.length) handleEvent('turnStart', { unit });
-        currentAction.push(specialSkill);
+        currentAction.push([specialSkill, unit]);
         specialSkill.code.call(unit);
         currentAction.pop();
         if (eventState.turnEnd.length) handleEvent('turnEnd', { unit });

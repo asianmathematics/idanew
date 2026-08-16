@@ -1,4 +1,4 @@
-import { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, stunModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentUnit, currentAction, elements, eventState } from '../combatDictionary.js';
+import { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, stunModifier, attribCancelMod, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentAction, elements, eventState } from '../combatDictionary.js';
 import { Unit, allUnits } from './unit.js';
 
 export const Revolutionary = new Unit("Revolutionary", [850, 50, 20, 130, 90, 150, 65, 90, 55, "mid", 75, 150, 18], ["passion/hatred"]);
@@ -10,7 +10,7 @@ Revolutionary.skills = {
             properties: ["physical", "attack", "pseudo-resource"],
             cost: { stamina: 40 },
             description: "Attacks a single target 4 times with increased attack/accuracy/focus, adds two attacks and extra attack if reloaded",
-            target() { this.team === "player" ? selectTarget(this.skills.special, [1, true, unitFilter("enemy", "front", false)]) : this.skills.special.code.call(this, randTarget(unitFilter("player", "", false))) },
+            target() { this.team === "player" ? selectTarget(this.skills.special, [1, true, unitFilter("enemy", "front", false)]) : this.skills.special.code.call(this, randTarget(unitFilter("player", "front", false))) },
             code(target) {
                 const bonus = this.custom?.focusFire ? !!this.custom.focusFire-- : 0;
                 attack(this, target, 4 + 2*bonus, { attacker: { attack: { bonus: 50*(1 + bonus) }, accuracy: { bonus: 35 }, focus: { bonus: 40 } } })
@@ -21,7 +21,7 @@ Revolutionary.skills = {
             properties: ["physical", "stamina", "debuff", "stun"],
             cost: { stamina: 40, position: "front" },
             description: "Decrease target accuracy/evasion/speed for a few turns depending on chance and stuns target for 1 turn, 1% chance to fail, increases stun duration by 1 if reloaded",
-            target() { this.team === "player" ? selectTarget(this.skills.special, [1, true, unitFilter("enemy", "front", false)]) : this.skills.special.code.call(this, randTarget(unitFilter("player", "", false))) },
+            target() { this.team === "player" ? selectTarget(this.skills.special, [1, true, unitFilter("enemy", "front", false)]) : this.skills.special.code.call(this, randTarget(unitFilter("player", "front", false))) },
             code(target) {
                 const will = resistDebuff(this, target)[0];
                 if (will >= 2) {
@@ -78,7 +78,7 @@ Revolutionary.skills = {
                         function() {},
                         function(context) {
                             let i;
-                            if (context.event === 'targetStart' && currentUnit.at(-2) === this.vars.target && (i = context.unitList.findIndex(u => u === this.vars.caster)) > -1) (((context.targetMods.targets ??= [])[i] ??= {}).presence ??= { mult: 1 }).mult++;
+                            if (context.event === 'targetStart' && currentAction.at(-2)[1] === this.vars.target && (i = context.unitList.findIndex(u => u === this.vars.caster)) > -1) (((context.targetMods.targets ??= [])[i] ??= {}).presence ??= { mult: 1 }).mult++;
                             if (context.unit === this.vars.caster) this.vars.duration--;
                             return this.vars.duration > 0;
                         }
@@ -93,7 +93,7 @@ Revolutionary.skills = {
             description: "Increases accuracy/focus and decreases resist/presence for 5 turns",
             code() {
                 basicModifier("Made to Serve buff", "Accuracy and focus increase", { caster: this, target: this, duration: 6, properties: ["physical", "buff"], stats: { accuracy: 160, focus: 160 }, listeners: { turnEnd: true } });
-                basicModifier("Made to Serve penalty", "resist and presence decrease", { caster: this, target: this, duration: 6, properties: ["physical", "penalty"], stats: { resist: -40, presence: -80 }, listeners: { turnEnd: true }, penalty: true });
+                basicModifier("Made to Serve penalty", "Resist and presence decrease", { caster: this, target: this, duration: 6, properties: ["physical", "penalty"], stats: { resist: -40, presence: -80 }, listeners: { turnEnd: true }, penalty: true });
             }
         },
         {
@@ -103,7 +103,7 @@ Revolutionary.skills = {
             description: "Increases attack/evasion and decreases resist/presence for 5 turns",
             code() {
                 basicModifier("Private Military buff", "Attack and evasion increase", { caster: this, target: this, duration: 6, properties: ["physical", "buff"], stats: { attack: 45, evasion: 80 }, listeners: { turnEnd: true } });
-                basicModifier("Private Military penalty", "resist and presence decrease", { caster: this, target: this, duration: 6, properties: ["physical", "penalty"], stats: { resist: -30, presence: -60 }, listeners: { turnEnd: true }, penalty: true });
+                basicModifier("Private Military penalty", "Resist and presence decrease", { caster: this, target: this, duration: 6, properties: ["physical", "penalty"], stats: { resist: -30, presence: -60 }, listeners: { turnEnd: true }, penalty: true });
             }
         },
         {
@@ -181,7 +181,7 @@ Revolutionary.skills = {
                         function() {},
                         function(context) {
                             let i;
-                            if (context.event === 'targetStart' && currentUnit.at(-2) === this.vars.target && (i = context.unitList.findIndex(u => u === this.vars.caster)) > -1) (((context.targetMods.targets ??= [])[i] ??= {}).presence ??= { mult: 1 }).mult += 1;
+                            if (context.event === 'targetStart' && currentAction.at(-2)[1] === this.vars.target && (i = context.unitList.findIndex(u => u === this.vars.caster)) > -1) (((context.targetMods.targets ??= [])[i] ??= {}).presence ??= { mult: 1 }).mult += 1;
                             if (context.unit === this.vars.caster) this.vars.duration--;
                             return this.vars.duration > 0;
                         }
@@ -203,7 +203,7 @@ Revolutionary.skills = {
                     if (mod) mod.vars.duration = 3, logAction(`${this.name} refreshes ${mod.name}`);
                 } else {
                     basicModifier("Made to Serve buff", "Accuracy and focus increase", { caster: this, target: this, duration: 3, properties: ["physical", "buff"], stats: { accuracy: 120, focus: 120 }, listeners: { turnEnd: true } });
-                    basicModifier("Made to Serve penalty", "resist and presence decrease", { caster: this, target: this, duration: 3, properties: ["physical", "penalty"], stats: { resist: -30, presence: -60 }, listeners: { turnEnd: true }, penalty: true });
+                    basicModifier("Made to Serve penalty", "Resist and presence decrease", { caster: this, target: this, duration: 3, properties: ["physical", "penalty"], stats: { resist: -30, presence: -60 }, listeners: { turnEnd: true }, penalty: true });
                 }
             }
         },
@@ -221,7 +221,7 @@ Revolutionary.skills = {
                     if (mod) mod.vars.duration = 3, logAction(`${this.name} refreshes ${mod.name}`);
                 } else {
                     basicModifier("Private Military buff", "Attack and evasion increase", { caster: this, target: this, duration: 3, properties: ["physical", "buff"], stats: { attack: 30, evasion: 60 }, listeners: { turnEnd: true } });
-                    basicModifier("Private Military penalty", "resist and presence decrease", { caster: this, target: this, duration: 3, properties: ["physical", "penalty"], stats: { resist: -20, presence: -40 }, listeners: { turnEnd: true }, penalty: true });
+                    basicModifier("Private Military penalty", "Resist and presence decrease", { caster: this, target: this, duration: 3, properties: ["physical", "penalty"], stats: { resist: -20, presence: -40 }, listeners: { turnEnd: true }, penalty: true });
                 }
             }
         },
@@ -260,7 +260,7 @@ Revolutionary.skills = {
                         function() {},
                         function(context) {
                             let i;
-                            if (context.event === 'targetStart' && currentUnit.at(-2) === this.vars.target && (i = context.unitList.findIndex(u => u === this.vars.caster)) > -1) (((context.targetMods.targets ??= [])[i] ??= {}).presence ??= { mult: 1 }).mult += 1;
+                            if (context.event === 'targetStart' && currentAction.at(-2)[1] === this.vars.target && (i = context.unitList.findIndex(u => u === this.vars.caster)) > -1) (((context.targetMods.targets ??= [])[i] ??= {}).presence ??= { mult: 1 }).mult += 1;
                             if (context.unit === this.vars.caster) this.vars.duration--;
                             return this.vars.duration > 0;
                         }
@@ -274,7 +274,7 @@ Revolutionary.skills = {
             description: "Increases accuracy/focus and decreases resist/presence for 1 turn",
             code() {
                 basicModifier("Made to Serve buff", "Accuracy and focus increase", { caster: this, target: this, duration: 2, properties: ["physical", "buff"], stats: { accuracy: 80, focus: 80 }, listeners: { turnEnd: true } });
-                basicModifier("Made to Serve penalty", "resist and presence decrease", { caster: this, target: this, duration: 2, properties: ["physical", "penalty"], stats: { resist: -20, presence: -40 }, listeners: { turnEnd: true }, penalty: true });
+                basicModifier("Made to Serve penalty", "Resist and presence decrease", { caster: this, target: this, duration: 2, properties: ["physical", "penalty"], stats: { resist: -20, presence: -40 }, listeners: { turnEnd: true }, penalty: true });
             }
         },
         {
@@ -329,7 +329,7 @@ Revolutionary.skills = {
                             if (!this.vars.fail && will <= 33) this.cancel(this.vars.fail = true);
                         }
                         let i;
-                        if (this.vars.target && context.event === 'targetStart' && currentUnit.at(-2) === this.vars.target && (i = context.unitList.findIndex(u => u === this.vars.caster)) > -1) (((context.targetMods.targets ??= [])[i] ??= {}).presence ??= { mult: 1 }).mult += 1;
+                        if (this.vars.target && context.event === 'targetStart' && currentAction.at(-2)[1] === this.vars.target && (i = context.unitList.findIndex(u => u === this.vars.caster)) > -1) (((context.targetMods.targets ??= [])[i] ??= {}).presence ??= { mult: 1 }).mult += 1;
                     }, undefined,
                     function(unit) {
                         if (!this.vars.target) resetStat(unit, Object.keys(this.vars.stats), Object.values(this.vars.stats));
@@ -378,7 +378,7 @@ Revolutionary.skills = {
                             if (!this.vars.fail && will <= 33) this.cancel(this.vars.fail = true);
                         }
                         let i;
-                        if (this.vars.target && context.event === 'targetStart' && currentUnit.at(-2) === this.vars.target && (i = context.unitList.findIndex(u => u === this.vars.caster)) > -1) (((context.targetMods.targets ??= [])[i] ??= {}).presence ??= { mult: 1 }).mult += 1;
+                        if (this.vars.target && context.event === 'targetStart' && currentAction.at(-2)[1] === this.vars.target && (i = context.unitList.findIndex(u => u === this.vars.caster)) > -1) (((context.targetMods.targets ??= [])[i] ??= {}).presence ??= { mult: 1 }).mult += 1;
                     }, undefined,
                     function(unit) {
                         if (!this.vars.target) resetStat(unit, Object.keys(this.vars.stats), Object.values(this.vars.stats));

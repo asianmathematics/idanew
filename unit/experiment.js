@@ -1,4 +1,4 @@
-import { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, stunModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentUnit, currentAction, elements, eventState } from '../combatDictionary.js';
+import { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, stunModifier, attribCancelMod, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentAction, elements, eventState } from '../combatDictionary.js';
 import { Unit, allUnits } from './unit.js';
 
 export const Experiment = new Unit("Experiment", [700, 24, 10, 70, 45, 70, 45, 45, 80, "front", 80, 70, 7], ["independence/loneliness"]);
@@ -161,7 +161,7 @@ Experiment.skills = {
                                 if (eventState.unitChange.length) handleEvent('unitChange', { type: 'death', unit });
                                 for (let i = modifiers.length - 1; i >= 0; i--) if (modifiers[i].vars.caster === unit) removeModifier(modifiers[i]);
                             }
-                        } else if (context.type === 'downed' && currentUnit.at(-2) === this.vars.caster && resistDebuff(this.vars.caster, [context.unit])[0] > 85) {
+                        } else if (context.type === 'downed' && currentAction.at(-2)[1] === this.vars.caster && resistDebuff(this.vars.caster, [context.unit])[0] > 85) {
                             this.vars.unit = context.unit;
                             this.vars.listeners.turnEnd = true;
                         }

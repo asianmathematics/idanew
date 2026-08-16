@@ -1,4 +1,4 @@
-import { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, stunModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentUnit, currentAction, elements, eventState } from '../combatDictionary.js';
+import { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, stunModifier, attribCancelMod, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentAction, elements, eventState } from '../combatDictionary.js';
 import { Unit, allUnits } from './unit.js';
 
 export const DexSoldier = new Unit("DeX (Soldier)", [1800, 25, 55, 70, 50, 60, 80, 55, 200, "front", 250, 150, 27], ["perfection/precision"]);
@@ -18,12 +18,13 @@ DexSoldier.skills = {
         {
             name: "Determination",
             properties: ["physical", "stamina", "heal"],
-            cost: { stamina: 40 },
-            description: `Immediately heals a lot (~20% max HP) and moderately heals (~10% max HP) at start of turn for next 5 turns`,
+            cost: { stamina: 30 },
+            description: `Immediately heals a lot (~20% max HP) and moderately heals (~10% max HP) at start of turn for next 7 turns`,
             code() {
+                heal(this.vars.caster, [this.vars.target], [2]);
                 new Modifier("Determination", `Moderately heals at start of turn`,
-                    { caster: this, target: this, duration: 5, properties: ["physical", "stamina", "heal"], listeners: { turnStart: true }, focus: true },
-                    function() { heal(this.vars.caster, [this.vars.target], [2]) },
+                    { caster: this, target: this, duration: 7, properties: ["physical", "stamina", "heal"], listeners: { turnStart: true }, focus: true },
+                    function() {},
                     function(context) {
                         if (context.unit === this.vars.caster) {
                             if (this.vars.applied) heal(this.vars.caster, [this.vars.target], [1]);
@@ -48,7 +49,7 @@ DexSoldier.skills = {
                         if (context.unit === this.vars.target && context.type === "downed") {
                             heal(this.vars.caster, [this.vars.target], [3]);
                             this.vars.uses--;
-                            this.cancel(true);
+                            this.cancel();
                         }
                         if (context.event === "turnStart" && context.unit === this.vars.caster) {
                             this.vars.duration--;
@@ -73,7 +74,7 @@ DexSoldier.skills = {
                     { caster: this, target: this, duration: 1, properties: ["physical"], stats: { defense: 40 }, listeners: { attackStart: true, turnStart: true }, cancelListeners: ['attackStart'], focus: true },
                     function() {},
                     function(context) {
-                        if (context.event === "attackStart" && context.attacker.team !== this.vars.target.team && !currentAction.at(-2)?.properties?.includes("aoe") && !currentAction.at(-2)?.vars?.properties?.includes("aoe")) {
+                        if (context.event === "attackStart" && context.attacker.team !== this.vars.target.team && !currentAction.at(-2)[0].properties?.includes("aoe") && !currentAction.at(-2)[0].vars?.properties?.includes("aoe")) {
                             let redirect = 0;
                             for (let i = 0; i < context.defenders.length; i++) {
                                 const target = context.defenders[i];
@@ -126,7 +127,7 @@ DexSoldier.skills = {
                     function() {},
                     function(context) {
                         if (context.unit === this.vars.caster) {
-                            if (this.vars.applied) heal(this.vars.caster, [this.vars.target], [1]);
+                            if (this.vars.applied) heal(this.vars.caster, [this.vars.target], [2]);
                             this.vars.duration--;
                         }
                         return this.vars.duration <= 0;
@@ -146,7 +147,7 @@ DexSoldier.skills = {
                     { caster: this, target, duration: 1, properties: ["physical"], listeners: { attackStart: true, turnStart: true }, cancelListeners: ['attackStart'], focus: true },
                     function() {},
                     function(context) {
-                        if (context.event === "attackStart" && context.attacker.team !== this.vars.caster.team && !currentAction.at(-2)?.properties?.includes("aoe") && !currentAction.at(-2)?.vars?.properties?.includes("aoe")) {
+                        if (context.event === "attackStart" && context.attacker.team !== this.vars.caster.team && !currentAction.at(-2)[0].properties?.includes("aoe") && !currentAction.at(-2)[0].vars?.properties?.includes("aoe")) {
                             let redirect = 0;
                             for (const target of context.defenders) {
                                 const index = context.defenders.indexOf(target);
@@ -254,7 +255,7 @@ DexSoldier.skills = {
                     { caster: this, target: this, duration: 1, properties: ["physical", "stamina"], listeners: { attackStart: true }, cancelListeners: ['attackStart'], cost: this.skills.passive.cost, focus: true, passive: true },
                     function() {},
                     function(context) {
-                        if (this.vars.caster.stamina >= this.vars.cost.stamina && !currentAction.at(-2)?.properties?.includes("aoe") && !currentAction.at(-2)?.vars?.properties?.includes("aoe") && context.event === "attackStart" && context.attacker.team !== this.vars.target.team) {
+                        if (this.vars.caster.stamina >= this.vars.cost.stamina && !currentAction.at(-2)[0].properties?.includes("aoe") && !currentAction.at(-2)[0].vars?.properties?.includes("aoe") && context.event === "attackStart" && context.attacker.team !== this.vars.target.team) {
                             let redirect = 0;
                             for (let i = 0; i < context.defenders.length; i++) {
                                 const target = context.defenders[i];

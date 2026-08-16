@@ -1,13 +1,12 @@
 import { allUnits } from "./unit/unit.js";
 const modifiers = [];
-const currentUnit = [];
 const currentAction = [];
 const elements = ["precision/perfection", "independence/loneliness", "passion/hatred", "ingenuity/insanity"];
 const eventState = {};
 const events = [
     'turnStart', 'resistStart', 'attackStart', 'critStart', 'damageStart', 'healStart', 'modifierStart', 'stun', 'resourceChange', 'targetStart',
     'turnEnd', 'singleResist', 'singleAttack', 'singleCrit', 'singleDamage', 'singleHeal', 'modifierEnd', 'cancel', 'costChange', 'targets',
-    'actionStart', 'positionChange', 'waveChange', 'unitChange', 'statChange'
+    'actionStart', 'positionChange', 'waveChange', 'unitChange', 'statChange', 'targetChange'
 ];
 events.forEach(type => eventState[type] = []);
 let turnOffStatLog = false;
@@ -48,43 +47,44 @@ class Modifier {
             }
             turnOffStatLog = false;
         }
-        this.changeTarget = changeTargetFunc || (this.vars.targets ? ((remove = [], add = []) => {
-            if (!add.length && remove.length === this.vars.targets.length) removeModifier(this);
-            else {
-                if (this.vars.applied) {
-                    this.cancel(true, true);
-                    for (let i = this.vars.targets.length - 1; i >= 0; i--) if (remove.includes(this.vars.targets[i])) this.vars.targets.splice(i, 1);
-                    this.vars.targets.push(...add);
-                    this.cancel(false, true);
-                } else {
-                    for (let i = this.vars.targets.length - 1; i >= 0; i--) if (remove.includes(this.vars.targets[i])) this.vars.targets.splice(i, 1);
-                    this.vars.targets.push(...add);
+        this.changeTarget = (...args) => {
+            if (eventState.targetChange.length) handleEvent('targetChange', { modifier: this, args });
+            (changeTargetFunc || (this.vars.targets ? ((remove = [], add = []) => {
+                if (!add.length && remove.length === this.vars.targets.length) removeModifier(this);
+                else {
+                    if (this.vars.applied) {
+                        this.cancel(true, true);
+                        for (let i = this.vars.targets.length - 1; i >= 0; i--) if (remove.includes(this.vars.targets[i])) this.vars.targets.splice(i, 1);
+                        this.vars.targets.push(...add);
+                        this.cancel(false, true);
+                    } else {
+                        for (let i = this.vars.targets.length - 1; i >= 0; i--) if (remove.includes(this.vars.targets[i])) this.vars.targets.splice(i, 1);
+                        this.vars.targets.push(...add);
+                    }
                 }
-            }
-        }) : ((unit) => {
-            if (unit === this.vars.target) removeModifier(this);
-            else {
-                if (this.vars.applied) {
-                    this.cancel(true, true);
-                    this.vars.target = unit;
-                    this.cancel(false, true);
-                } else this.vars.target = unit;
-            }
-        }));
+            }) : ((unit) => {
+                if (unit === this.vars.target) removeModifier(this);
+                else {
+                    if (this.vars.applied) {
+                        this.cancel(true, true);
+                        this.vars.target = unit;
+                        this.cancel(false, true);
+                    } else this.vars.target = unit;
+                }
+            }))).apply(this, args);
+        }
         if (currentAction.length) {
             this.vars.parent = currentAction.at(-1);
-            if (currentAction.at(-1).vars) currentAction.at(-1).vars.child ? currentAction.at(-1).vars.child.push(this) : currentAction.at(-1).vars.child = [this];
+            if (currentAction.at(-1).vars) currentAction.at(-1)[0].vars.child ? currentAction.at(-1)[0].vars.child.push(this) : currentAction.at(-1)[0].vars.child = [this];
         }
         modifiers.push(this);
         if (eventState.modifierStart.length) handleEvent('modifierStart', { modifier: this });
-        currentUnit.push(this.vars.caster);
-        currentAction.push(this);
+        currentAction.push([this, this.vars.caster]);
         this.init() ? removeModifier(this) : this.vars.cancel = !(this.vars.applied = this.vars.start = true);
         if (this.vars.stats && this.vars.target && !this.vars.disablestatChange) resetStat(this.vars.target, Object.keys(this.vars.stats), Object.values(this.vars.stats));
         if (this.vars.reduction) for (const stat of Object.keys(this.vars.reduction)) this.vars.caster.mult[stat] ? (this.vars.caster.base[stat] -= this.vars.reduction[stat]) && resetStat(this.vars.caster, [stat]) : (this.vars.caster.base[stat] -= this.vars.reduction[stat]) && (this.vars.caster[stat] = Math.max(this.vars.caster[stat] -this.vars.reduction[stat], 0));
         if (this.vars.listeners) for (const eventType in this.vars.listeners) if (this.vars.listeners[eventType]) eventState[eventType].push(this);
         currentAction.pop();
-        currentUnit.pop();
         //window.updateModifiers();
     }
 }
@@ -94,16 +94,15 @@ function handleEvent(eventType, context) {
     context.event = eventType;
     for (let i = eventList.length - 1; i >= 0; i--) {
         if (!eventState[eventType].includes(eventList[i]) || !eventList[i]?.vars?.start) continue;
-        currentUnit.push(eventList[i]?.vars?.caster)
-        currentAction.push(eventList[i]);
-        const stack = [currentAction.length, currentUnit.length];
+        currentAction.push([eventList[i], eventList[i]?.vars?.caster]);
+        const stack = currentAction.length;
         try {
-            if (!currentUnit.at(-1)) throw new Error(`No caster found in Modifier: ${eventList[i]?.name}`)
-            if (eventList[i] === currentAction.at(-3) && (eventList[i] === currentAction.at(-2) || eventList[i] === currentAction.at(-5))) logAction(`Modifier ${eventList[i]?.name} was called too many times in one event!`, "error");
+            if (!currentAction.at(-1)[1]) throw new Error(`No caster found in Modifier: ${eventList[i]?.name}`)
+            if (eventList[i] === currentAction.at(-3)[0] && (eventList[i] === currentAction.at(-2)[0] || eventList[i] === currentAction.at(-5)[0])) logAction(`Modifier ${eventList[i]?.name} was called too many times in one event!`, "error");
             else if (eventList[i].onTurn(context)) removeModifier(eventList[i]);
         } catch (e) {
             console.error(`Error in ${eventType} listener (${eventList[i]?.name}):`, e);
-            console.log(`currentAction stack: ${currentAction.join(', ')}\ncurrentUnit stack: ${currentUnit.join(', ')}`);
+            console.log(`currentAction stack: ${currentAction.map(a => a[0]).join(', ')}\ncurrentUnit stack: ${currentAction.map(a => a[1]).join(', ')}`);
             try {
                 removeModifier(eventList[i]);
                 logAction(`An error occurred with a modifier.`, "error");
@@ -111,14 +110,8 @@ function handleEvent(eventType, context) {
                 logAction('A major error occurred with a modifier, event list has been purged', "error");
                 modifiers.splice(0, modifiers.length, ...modifiers.filter(mod => mod !== eventList[i]));
                 for (const event of events) if (eventState[event].length) eventState[event] = eventState[event].filter(mod => mod !== eventList[i]);
-            } finally {
-                currentAction.length = stack[0];
-                currentUnit.length = stack[1];
-            }
-        } finally {
-            currentAction.pop();
-            currentUnit.pop();
-        }
+            } finally { currentAction.length = stack }
+        } finally { currentAction.pop() }
     }
     window.updateModifiers();
 }
@@ -128,20 +121,16 @@ function removeModifier(modifier) {
     if (modifier.vars.perm || (index = modifiers.indexOf(modifier)) === -1) return;
     if (modifier.vars.passive && allUnits.includes(modifier.vars.caster)) {
         if (modifier.vars.caster.hp === 0 && modifier.vars.focus) {
-            currentUnit.push(modifier.vars.caster);
-            currentAction.push(modifier);
+            currentAction.push([modifier, modifier.vars.caster]);
             modifier.cancel();
             currentAction.pop();
-            currentUnit.pop();
         }
         return;
     }
     if (modifier.vars?.applied) {
-        currentUnit.push(modifier.vars.caster);
-        currentAction.push(modifier);
+        currentAction.push(modifier, modifier.vars.caster);
         modifier.cancel();
         currentAction.pop();
-        currentUnit.pop();
     }
     if (eventState.modifierEnd.length) handleEvent('modifierEnd', { modifier });
     if (modifier.vars?.listeners) for (const event in modifier.vars.listeners) if (modifier.vars.listeners[event] && eventState[event].indexOf(modifier) > -1) eventState[event].splice(eventState[event].indexOf(modifier), 1);
@@ -166,11 +155,9 @@ function stunModifier(name, vari, dur = 'target') {
             this.vars.target.stun++;
             if (this.vars.target.stun) {
                 for (const mod of this.vars.modifiers = modifiers.filter(m => m.vars.caster === this.vars.target && m.vars.focus)) {
-                    currentUnit.push(this.vars.caster);
-                    currentAction.push(mod);
-                    mod.cancel(true);
+                    currentAction.push([mod, mod.vars.caster]);
+                    mod.cancel();
                     currentAction.pop();
-                    currentUnit.pop();
                 }
             }
         },
@@ -191,11 +178,9 @@ function stunModifier(name, vari, dur = 'target') {
                     this.vars.target.stun--;
                     if (!this.vars.target.stun) {
                         for (const mod of this.vars.modifiers) {
-                            currentUnit.push(this.vars.caster);
-                            currentAction.push(mod);
+                            currentAction.push([mod, mod.vars.caster]);
                             mod.cancel(false);
                             currentAction.pop();
-                            currentUnit.pop();
                         }
                         this.vars.modifiers = []
                     }
@@ -209,11 +194,90 @@ function stunModifier(name, vari, dur = 'target') {
                     this.vars.target.stun++;
                     if (this.vars.target.stun) {
                         for (const mod of this.vars.modifiers = modifiers.filter(m => m.vars.caster === this.vars.target && m.vars.focus)) {
-                            currentUnit.push(this.vars.caster);
-                            currentAction.push(mod);
-                            mod.cancel(true);
+                            currentAction.push([mod, mod.vars.caster]);
+                            mod.cancel();
                             currentAction.pop();
-                            currentUnit.pop();
+                        }
+                    }
+                }
+            }
+        }
+    )
+}
+
+function attribCancelMod(name, vari, attrib, dur = "target") {
+    return new Modifier(name, `Ends non-passive ${attrib} modifiers target is focusing, cancels ${attrib} modifiers on target, and disables ${attrib === 'physical' ? 'stamina' : attrib === 'mystic' ? 'mana' : 'energy'} regen`, vari,
+        function() {
+            this.vars.modifiers = [];
+            for (const mod of modifiers.filter(m => m !== this && m.vars.properties.includes(attrib) && !m.vars.perm && (m.vars.caster === this.vars.target || m.vars.target === this.vars.target))) {
+                if (mod.vars.caster === this.vars.target && mod.vars.focus && !mod.vars.passive) removeModifier(mod);
+                else if (mod.vars.target === this.vars.target || mod.vars.focus) {
+                    this.vars.modifiers.push(mod);
+                    currentAction.push([mod, mod.vars.caster]);
+                    mod.cancel();
+                    currentAction.pop();
+                }
+            }
+            this.vars.listeners ? this.vars.listeners.resourceChange = this.vars.listeners.modifierEnd = this.vars.listeners.modifierStart = this.vars.listeners.targetChange = true : this.vars.listeners = { targetChange: true, modifierStart: true, modifierEnd: true, resourceChange: true };
+            this.vars.cancelListeners ? this.vars.cancelListeners.includes('resourceChange') ? this.vars.cancelListeners.push('resourceChange') : '' : this.vars.cancelListeners = ['resourceChange']
+        },
+        function(context) {
+            if (context.modifier === this) return;
+            if (context.event === 'targetChange') {
+                if (context.modifier.vars.caster !== this.vars.target && this.vars.modifiers.includes(context.modifier)) {
+                    this.vars.modifiers.splice(this.vars.modifiers.indexOf(context.modifier), 1);
+                    currentAction.push([context.modifier, context.modifier.vars.caster]);
+                    context.modifier.cancel(false);
+                    currentAction.pop();
+                } else if (context.args[0] === this.vars.target && context.modifier.properties.includes(attrib) && !this.vars.modifiers.includes(context.modifier)) {
+                    this.vars.modifiers.push(context.modifier);
+                    currentAction.push([context.modifier, context.modifier.vars.caster]);
+                    context.modifier.cancel();
+                    currentAction.pop();
+                }
+            }
+            if (context.event === 'modifierStart' && context.modifier.vars.properties.includes(attrib) && !context.modifier.vars.perm && (context.modifier.vars.caster === this.vars.target || context.modifier.vars.target === this.vars.target)) {
+                if (context.modifier.vars.caster === this.vars.target && context.modifier.vars.focus && !context.modifier.vars.passive) removeModifier(context.modifier);
+                else if (context.modifier.vars.target === this.vars.target || context.modifier.vars.focus) {
+                    this.vars.modifiers.push(context.modifier);
+                    currentAction.push([context.modifier, context.modifier.vars.caster]);
+                    context.modifier.cancel();
+                    currentAction.pop();
+                }
+            }
+            if (context.event === 'modifierEnd' && this.vars.modifiers.includes(context.modifier)) { this.vars.modifiers.splice(this.vars.modifiers.indexOf(context.modifier), 1) }
+            if (this.vars.applied && context.unit === this.vars.target && context.resources?.energy * (context.add ? 1 : -1)) context.energy.nil = true;
+            if (context.event !== 'resourceChange' && this.vars[dur] === context.unit) this.vars.duration--;
+            if (Object.hasOwn(this.vars, "duration")) return this.vars.duration <= 0;
+        },
+        function(cancel, temp) {
+            if (!temp) {
+                if (this.vars.cancel && this.vars.applied) {
+                    this.vars.applied = false;
+                    for (const listener of this.vars.cancelListeners) {
+                        this.vars.listeners[listener] = false;
+                        const i = eventState[listener].indexOf(this);
+                        if (i > -1) eventState[listener].splice(i, 1);
+                    }
+                    for (const mod of this.vars.modifiers) {
+                        currentAction.push([mod, mod.vars.caster]);
+                        mod.cancel(false);
+                        currentAction.pop();
+                    }
+                    this.vars.modifiers = []
+                } else if (!this.vars.cancel && !this.vars.applied) {
+                    this.vars.applied = true;
+                    for (const listener of this.vars.cancelListeners) {
+                        this.vars.listeners[listener] = true;
+                        eventState[listener].push(this);
+                    }
+                    for (const mod of modifiers.filter(m => m !== this && m.vars.properties.includes(attrib) && !m.vars.perm && (m.vars.caster === this.vars.target || m.vars.target === this.vars.target))) {
+                        if (mod.vars.caster === this.vars.target && mod.vars.focus && !mod.vars.passive) removeModifier(mod);
+                        else if (mod.vars.target === this.vars.target || mod.vars.focus) {
+                            this.vars.modifiers.push(mod);
+                            currentAction.push([mod, mod.vars.caster]);
+                            mod.cancel();
+                            currentAction.pop();
                         }
                     }
                 }
@@ -253,7 +317,7 @@ const logAction = (function () {
     return function (message, type = 'info') {
         const logContainer = document.getElementById('action-log');
         if (!logContainer) return;
-        const actionPrefix = currentAction.length ? currentAction.at(-1).name + ': ' : '';
+        const actionPrefix = currentAction.length ? currentAction.at(-1)[0].name + ': ' : '';
         const match = message.match(STAT_CHANGE_REGEX);
         if (match) {
             const [, unitName, statChangeText] = match;
@@ -336,7 +400,7 @@ function executeEnemyAction(unit, action) {
         if (action.properties.includes('physical')) unit.previousAction[0] = true;
         if (action.properties.includes('mystic')) unit.previousAction[1] = true;
         if (action.properties.includes('techno')) unit.previousAction[2] = true;
-        currentAction.push(action);
+        currentAction.push([action, unit]);
         action.target ? action.target.call(unit) : action.code.call(unit);
         currentAction.pop();
     } else logAction(`${unit.name}'s ${action.name} action failed!`, 'miss');
@@ -395,7 +459,7 @@ function randTarget(unitList = allUnits, count = 1, trueRand = false) {
 
 function selectTarget(action, target, targetType = 'unit') {
     document.getElementById('selection').style.display = 'block';
-    const unit = currentUnit.at(-1);
+    const unit = currentAction.at(-1)[1];
     let maxSelections = target[0];
     if (target[0] === -1 || target[0] > target[2].length) maxSelections = target[2].length;
     let selectionTitle = `<h2 style="text-align:center;">Action: ${action.name}</h2>`;
@@ -463,16 +527,14 @@ function selectTarget(action, target, targetType = 'unit') {
         if (!unit.cancel && (!action.cost || resourceChange(unit, action.cost, false))) {
             logAction(`<strong>${unit.name}'s turn$' (Special Interrupt!)</strong>`, 'turn');
             if (eventState.turnStart.length) handleEvent('turnStart', { unit });
-            currentAction.push(action);
+            currentAction.push([action, unit]);
             action.code.call(unit, selectedTargets);
             currentAction.pop();
-            if (eventState.turnEnd.length) handleEvent('turnEnd', { unit });
         } else logAction(`${unit.name}'s action was canceled!`, 'miss');
         document.getElementById("selection").innerHTML = "";
         document.getElementById('selection').style.display = 'none';
         cleanupGlobalHandlers();
         if (eventState.turnEnd.length) { handleEvent('turnEnd', { unit }) }
-        currentAction.pop();
         unit.specialReady = false;
     }
 
@@ -666,12 +728,12 @@ function resistDebuff(attacker, defenders, calcMods = {}) {
 
 function resourceChange(unit, resources, add = true, drain = false) {
     const { position, ...actualResources } = resources;
-    const context = {unit, resources: actualResources};
+    const context = {unit, resources: actualResources, add, drain};
     if (eventState.resourceChange.length) handleEvent('resourceChange', context);
     for (const resource in context.resources) {
-        let change = (context[resource]?.nil || context.all?.nil) ? 0 : (resources[resource] + (context[resource]?.bonus || 0) + (context.all?.bonus || 0))*(context[resource]?.mult || 1)*(context.all?.mult || 1)/(context[resource]?.div || 1)/(context.all?.div || 1) + (context[resource]?.flatBonus || 0) + (context.all?.flatBonus || 0);
+        let change = (context[resource]?.nil || context.all?.nil) ? 0 : (context.resources[resource] + (context[resource]?.bonus || 0) + (context.all?.bonus || 0))*(context[resource]?.mult || 1)*(context.all?.mult || 1)/(context[resource]?.div || 1)/(context.all?.div || 1) + (context[resource]?.flatBonus || 0) + (context.all?.flatBonus || 0);
         context.resources[resource] = add ? change : -change;
-        if (!drain && -context.resources[resource] > unit[resource]) return (currentAction.length === 1 && currentUnit.at(-1).team === 'player') ? logAction(`Not enough ${resource}!`, "warning") && false : false;
+        if (!drain && -context.resources[resource] > unit[resource]) return (currentAction.length === 1 && currentAction.at(-1)[1].team === 'player') ? logAction(`Not enough ${resource}!`, "warning") && false : false;
     }
     for (const resource in context.resources) unit[resource] = Math.ceil(Math.max(0, Math.min(unit[resource] + context.resources[resource], unit.base[resource])));
     return true;
@@ -706,4 +768,4 @@ function unitByStat(units, statName, type = 'number', max = true, count = 1) {
     return sorted.slice(0, count);
 }
 
-export { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, stunModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentUnit, currentAction, elements, eventState };
+export { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, stunModifier, attribCancelMod, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentAction, elements, eventState };

@@ -1,4 +1,4 @@
-import { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, stunModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentUnit, currentAction, elements, eventState } from '../combatDictionary.js';
+import { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, stunModifier, attribCancelMod, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentAction, elements, eventState } from '../combatDictionary.js';
 import { Unit, createUnit, cloneUnit, allUnits } from './unit.js';
 
 export const Silhouette = new Unit("Silhouette", [650, 24, 25, 110, 160, 135, 140, 75, 50, "mid", 80, 80, 10, 100, 16], ["independence/loneliness"]);
@@ -81,7 +81,7 @@ Silhouette.skills = {
                     function() {},
                     function(context) {
                         if (context.unit === this.vars.target) {
-                            if (context.type === "death") return !(this.vars.perm = this.vars.listeners.unitChange = false);
+                            if (context.type === "death") return !(this.vars.perm = false);
                             if (context.event === "turnEnd") this.vars.duration--;
                         }
                         if (this.vars.duration <= 0 && this.vars.perm) {
@@ -149,7 +149,7 @@ Silhouette.skills = {
                             const mod = modifiers.find(m => m.name === "Fear of the Dark buff" && m.vars.caster === this.vars.caster);
                             for (const target of add) {
                                 if (mod) new Modifier("Fear of the Dark buff copy", mod.description, { ...mod.vars, target, stats: { ...mod.vars.stats }, listeners: {}, cancel: false, applied: true }, mod.init, mod.onTurn, mod.cancel, mod.changeTarget);
-                                basicModifier("Friends with the Shadows buff", "Star up equivalent stat increase", { caster: this.vars.caster, target, properties: ["mystic", "mana", "buff"], stats: Object.fromEntries(Object.keys(target.mult).map(k => [k, Math.ceil(target.base[k]/2)])) })
+                                basicModifier("Friends with the Shadows buff", "Star up equivalent stat increase", { caster: this.vars.caster, target, properties: ["mystic", "buff"], stats: Object.fromEntries(Object.keys(target.mult).map(k => [k, Math.ceil(target.base[k]/2)])) })
                             }
                         } else {
                             for (let i = this.vars.targets.length - 1; i >= 0; i--) if (remove.includes(this.vars.targets[i])) this.vars.targets.splice(i, 1);
@@ -173,7 +173,7 @@ Silhouette.skills = {
             name: "Accursed Lineage",
             properties: ["physical", "stamina", "mystic", "mana", "revive"],
             cost: { stamina: 15, mana: 25 },
-            description: `Revives for the next 6 turns, second and later revives unsummon a shadow and fails if no shadows can be unsummoned`,
+            description: `Revives for the next 6 turns, second and later revives require to unsummon a shadow`,
             code() {
                 logAction(`${this.name} hangs around the borders of life and death!`, "buff")
                 new Modifier("Accursed Lineage", `Spend shadow summon to revive, first revive is free`,
@@ -186,14 +186,12 @@ Silhouette.skills = {
                                 const mod = modifiers.find(m => m.name === "Summon Shadow" && m.vars.caster === this.vars.caster);
                                 if (!mod) return; 
                                 mod.vars.duration = 0;
-                                currentUnit.push(mod.vars.caster);
-                                currentAction.push(mod);
+                                currentAction.push([mod, mod.vars.caster]);
                                 mod.onTurn({});
                                 currentAction.pop();
-                                currentUnit.pop();
                                 removeModifier(mod);
                             }
-                            heal(this.vars.caster, [this.vars.target], [4]);
+                            heal(this.vars.caster, [this.vars.target], [3]);
                         }
                         if (context.event === "turnStart" && context.unit === this.vars.caster) this.vars.duration--;
                         return this.vars.duration <= 0;
@@ -243,13 +241,13 @@ Silhouette.skills = {
                 const clone = createUnit(new Unit("Shadow", [290, 13, 11, 49, 66, 60, 60, 30, 24, this.position, 16, 10, 1, 40, 8]), this.team);
                 clone.skills = shadowSkills;
                 clone.custom = { ...clone.custom, summoner: this };
-                if (eventState.unitChange.length) handleEvent('unitChange', { type: 'summon', unit: clone});
-                new Modifier("Summon Shadow", "Summon shadow clone of a ally unit in the same position with 1 star stats",
+                if (eventState.unitChange.length) handleEvent('unitChange', { type: 'summon', unit: clone });
+                new Modifier("Summon Shadow", "Summon 1 star shadow",
                     { caster: this, target: clone, duration: 4, properties: ["mystic", "summon"], listeners: { turnEnd: true, unitChange: true }, perm: true },
                     function() {},
                     function(context) {
                         if (context.unit === this.vars.target) {
-                            if (context.type === "death") return !(this.vars.perm = this.vars.listeners.unitChange = false);
+                            if (context.type === "death") return !(this.vars.perm = false);
                             if (context.event === "turnEnd") this.vars.duration--;
                         }
                         if (this.vars.duration <= 0 && this.vars.perm) {
@@ -322,10 +320,10 @@ Silhouette.skills = {
         {
             name: "Amulet of Darkness",
             properties: ["mana", "positional", "heal"],
-            description: `Regen a lot of mana (~15% max mana). If in backline, disable stamina regen to heal slightly (~2.5% max hp)`,
+            description: `Regen a lot of mana (~15% max mana). If in backline, disable stamina regen to heal slightly (~5% max hp)`,
             code() {
                 resourceChange(this, { mana: 1.5 * this.manaRegen });
-                this.position === 'back' ? (this.previousAction[0] = true && heal(this, [this], [.25])) : logAction(`${this.name}'s amulet flickers`, "buff");
+                this.position === 'back' ? (this.previousAction[0] = true && heal(this, [this], [.5])) : logAction(`${this.name}'s amulet flickers`, "buff");
             }
         },
         {
@@ -372,7 +370,7 @@ Silhouette.skills = {
                     function(cancel, temp) {
                         if (!temp) {
                             if (this.vars.cancel && this.vars.applied) {
-                                modifiers.filter(m => this.vars.targets.includes(m.vars.target) && m.vars.caster === this.vars.caster).forEach(m => m.cancel(true));
+                                modifiers.filter(m => this.vars.targets.includes(m.vars.target) && m.vars.caster === this.vars.caster).forEach(m => m.cancel());
                                 this.vars.applied = false;
                                 this.vars.listeners.unitChange = false;
                                 eventState.unitChange.splice(eventState.unitChange.indexOf(this), 1);
@@ -389,7 +387,7 @@ Silhouette.skills = {
                             if (this.vars.child) this.vars.child.filter(m => remove.includes(m.vars.target)).forEach(m => removeModifier(m));
                             for (let i = this.vars.targets.length - 1; i >= 0; i--) if (remove.includes(this.vars.targets[i])) this.vars.targets.splice(i, 1);
                             this.vars.targets.push(...add);
-                            for (const target of add) basicModifier("Friends with the Shadows buff", "Star up equivalent stat increase", { caster: this.vars.caster, target, properties: ["mystic", "mana", "buff"], stats: Object.fromEntries(Object.keys(target.mult).map(k => [k, Math.ceil(target.base[k]/2)])) })
+                            for (const target of add) basicModifier("Friends with the Shadows buff", "Star up equivalent stat increase", { caster: this.vars.caster, target, properties: ["mystic", "buff"], stats: Object.fromEntries(Object.keys(target.mult).map(k => [k, Math.ceil(target.base[k]/2)])) })
                         } else {
                             for (let i = this.vars.targets.length - 1; i >= 0; i--) if (remove.includes(this.vars.targets[i])) this.vars.targets.splice(i, 1);
                             this.vars.targets.push(...add);
@@ -402,14 +400,13 @@ Silhouette.skills = {
             name: "Amulet of Darkness",
             properties: ["physical", "stamina", "mana", "positional", "heal"],
             reduction: { stamina: 20, staminaRegen: 2 },
-            description: "Regen mana (~10 max mana) each turn. If at backline, double reduction to also heal (~5% hp) each turn",
+            description: "Regen mana (~10% max mana) each turn. If at backline, double reduction to also heal (~5% hp) each turn",
             code() {
-                new Modifier("Amulet of Darkness", `Regen mana (~10 max mana)${this.position === 'back' ? ' and heal (~5% hp)' : ''} each turn`,
-                    { caster: this, target: this, properties: this.position === "back" ? ["physical", "stamina", "mana", "heal"] : ["physical", "stamina", "mana"], listeners: { unitChange: true, turnStart: true }, cancelListeners: ['turnStart'], reduction: this.position === 'back' ? Object.fromEntries(Object.entries(this.skills.passive.reduction).map(([k, v]) => [k, 2*v])) : this.skills.passive.reduction, focus: true, passive: true },
+                new Modifier("Amulet of Darkness", `Regen mana (~10% max mana)${this.position === 'back' ? ' and heal (~5% hp)' : ''} each turn`,
+                    { caster: this, target: this, properties: this.position === "back" ? ["physical", "mana", "heal"] : ["physical", "mana"], listeners: { turnStart: true }, cancelListeners: ['turnStart'], reduction: this.position === 'back' ? Object.fromEntries(Object.entries(this.skills.passive.reduction).map(([k, v]) => [k, 2*v])) : this.skills.passive.reduction, passive: true },
                     function() {},
                     function(context) {
-                        if (context.unit !== this.vars.caster) return;
-                        if (this.vars.applied){
+                        if (context.unit === this.vars.caster && this.vars.applied ){
                             resourceChange(this.vars.target, { mana: this.vars.target.manaRegen });
                             if (this.vars.caster.position === 'back') heal(this.vars.caster, [this.vars.target], [0.5]);
                         }
@@ -432,13 +429,11 @@ Silhouette.skills = {
                             const mod = modifiers.find(m => m.name === "Summon Shadow" && m.vars.caster === this.vars.caster);
                             if (!mod) return;
                             mod.vars.duration = 0;
-                            currentUnit.push(mod.vars.caster);
-                            currentAction.push(mod);
+                            currentAction.push([mod, mod.vars.caster]);
                             mod.onTurn({});
                             currentAction.pop();
-                            currentUnit.pop();
                             removeModifier(mod);
-                            heal(this.vars.caster, [this.vars.target], [4]);
+                            heal(this.vars.caster, [this.vars.target], [3]);
                         }
                     }
                 );
@@ -482,7 +477,7 @@ Silhouette.skills = {
                     function(cancel, temp) {
                         if (!temp) {
                             if (this.vars.cancel && this.vars.applied) {
-                                modifiers.filter(m => this.vars.targets.includes(m.vars.target) && m.vars.caster === this.vars.caster).forEach(m => m.cancel(true));
+                                modifiers.filter(m => this.vars.targets.includes(m.vars.target) && m.vars.caster === this.vars.caster).forEach(m => m.cancel());
                                 this.vars.applied = false;
                                 this.vars.listeners.unitChange = false;
                                 eventState.unitChange.splice(eventState.unitChange.indexOf(this), 1);
@@ -499,7 +494,7 @@ Silhouette.skills = {
                             if (this.vars.child) this.vars.child.filter(m => remove.includes(m.vars.target)).forEach(m => removeModifier(m));
                             for (let i = this.vars.targets.length - 1; i >= 0; i--) if (remove.includes(this.vars.targets[i])) this.vars.targets.splice(i, 1);
                             this.vars.targets.push(...add);
-                            for (const target of add) basicModifier("Friends with the Shadows buff", "Star up equivalent stat increase", { caster: this.vars.caster, target, properties: ["mystic", "mana", "buff"], stats: Object.fromEntries(Object.keys(target.mult).map(k => [k, Math.ceil(target.base[k] * (Math.pow(1.5, 1.5) - 1))])) })
+                            for (const target of add) basicModifier("Friends with the Shadows buff", "Star up equivalent stat increase", { caster: this.vars.caster, target, properties: ["mystic", "buff"], stats: Object.fromEntries(Object.keys(target.mult).map(k => [k, Math.ceil(target.base[k] * (Math.pow(1.5, 1.5) - 1))])) })
                         } else {
                             for (let i = this.vars.targets.length - 1; i >= 0; i--) if (remove.includes(this.vars.targets[i])) this.vars.targets.splice(i, 1);
                             this.vars.targets.push(...add);
@@ -512,14 +507,13 @@ Silhouette.skills = {
             name: "Amulet of Darkness",
             properties: ["physical", "stamina", "mana", "positional", "heal"],
             reduction: { stamina: 20, staminaRegen: 2 },
-            description: "Regen mana (~15 max mana) each turn. If at backline, double reduction to also heal (~7.5% hp) each turn",
+            description: "Regen mana (~15% max mana) each turn. If at backline, double reduction to also heal (~7.5% hp) each turn",
             code() {
-                new Modifier("Amulet of Darkness", `Regen mana (~10 max mana)${this.position === 'back' ? ' and heal (~5% hp)' : ''} each turn`,
-                    { caster: this, target: this, properties: this.position === "back" ? ["physical", "stamina", "mana", "heal"] : ["physical", "stamina", "mana"], listeners: { unitChange: true, turnStart: true }, cancelListeners: ['turnStart'], reduction: this.position === 'back' ? Object.fromEntries(Object.entries(this.skills.passive.reduction).map(([k, v]) => [k, 2*v])) : this.skills.passive.reduction, focus: true, passive: true },
+                new Modifier("Amulet of Darkness", `Regen mana (~15% max mana)${this.position === 'back' ? ' and heal (~5% hp)' : ''} each turn`,
+                    { caster: this, target: this, properties: this.position === "back" ? ["physical", "mana", "heal"] : ["physical", "mana"], listeners: { turnStart: true }, cancelListeners: ['turnStart'], reduction: this.position === 'back' ? Object.fromEntries(Object.entries(this.skills.passive.reduction).map(([k, v]) => [k, 2*v])) : this.skills.passive.reduction, passive: true },
                     function() {},
                     function(context) {
-                        if (context.unit !== this.vars.caster) return;
-                        if (this.vars.applied){
+                        if (context.unit === this.vars.caster && this.vars.applied ){
                             resourceChange(this.vars.target, { mana: this.vars.target.manaRegen * 1.5 });
                             if (this.vars.caster.position === 'back') heal(this.vars.caster, [this.vars.target], [0.75]);
                         }

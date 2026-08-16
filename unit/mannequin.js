@@ -1,4 +1,4 @@
-import { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, stunModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentUnit, currentAction, elements, eventState } from '../combatDictionary.js';
+import { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, stunModifier, attribCancelMod, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentAction, elements, eventState } from '../combatDictionary.js';
 import { FourArcher } from './fourArcher.js';
 import { Unit, allUnits } from './unit.js';
 
@@ -22,11 +22,11 @@ Mannequin.skills = {
             name: "Emergency Aid",
             properties: ["physical", "stamina", "heal", "positional"],
             cost: { stamina: 50 },
-            description: "Heals self and all allies (around ~20% max hp) in the same position",
+            description: "Heals self and all allies (around ~25% max hp) in the same position",
             code() {
                 const targets = unitFilter(this.team, this.position);
                 if (eventState.targets.length) handleEvent('targets', { selectedTargets: targets, count: targets.length });
-                heal(this, targets, Array(targets.length).fill(2));
+                heal(this, targets, Array(targets.length).fill(2.5));
             }
         },
         {
@@ -60,7 +60,7 @@ Mannequin.skills = {
             properties: ["physical", "stamina", "attack", "pseudo-resource"],
             cost: { stamina: 40 },
             description: "Attacks a single target 4 times with increased attack/accuracy/focus, adds two attacks and extra attack if reloaded",
-            target() { this.team === "player" ? selectTarget(this.skills.special, [1, true, unitFilter("enemy", "front", false)]) : this.skills.special.code.call(this, randTarget(unitFilter("player", "", false))) },
+            target() { this.team === "player" ? selectTarget(this.skills.special, [1, true, unitFilter("enemy", "front", false)]) : this.skills.special.code.call(this, randTarget(unitFilter("player", "front", false))) },
             code(target) {
                 const bonus = this.custom?.focusFire ? !!this.custom.focusFire-- : 0;
                 attack(this, target, 4 + 2*bonus, { attacker: { attack: { bonus: 50*(1 + bonus) }, accuracy: { bonus: 35 }, focus: { bonus: 40 } } })
@@ -127,8 +127,8 @@ Mannequin.skills = {
             name: "Emergency Aid",
             properties: ["physical", "stamina", "heal", "positional"],
             cost: { stamina: 20 },
-            description: "Heals lowest hp ally (around ~20% max hp) in the same position",
-            code() { heal(this, unitByStat(unitFilter(this.team, this.position), 'hp', 'percent', false), [2]) }
+            description: "Heals lowest hp ally (around ~25% max hp) in the same position",
+            code() { heal(this, unitByStat(unitFilter(this.team, this.position), 'hp', 'percent', false), [2.5]) }
         },
         {
             name: "Ex-Revolutionary",
@@ -213,8 +213,8 @@ Mannequin.skills = {
         {
             name: "Emergency Aid",
             properties: ["physical", "heal", "positional"],
-            description: "Heals lowest hp ally (around ~10% max hp) in the same position",
-            code() { heal(this, unitByStat(unitFilter(this.team, this.position), 'hp', 'percent', false), [1]) }
+            description: "Heals lowest hp ally (around ~15% max hp) in the same position",
+            code() { heal(this, unitByStat(unitFilter(this.team, this.position), 'hp', 'percent', false), [1.5]) }
         },
         {
             name: "Ex-Revolutionary",

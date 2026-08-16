@@ -1,4 +1,4 @@
-import { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, stunModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentUnit, currentAction, elements, eventState } from '../combatDictionary.js';
+import { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, stunModifier, attribCancelMod, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentAction, elements, eventState } from '../combatDictionary.js';
 import { Unit, allUnits } from './unit.js';
 
 export const Reject = new Unit("Reject", [660, 30, 28, 60, 40, 60, 80, 40, 70, "front", 66, 60, 8], ["independence/loneliness"]);
@@ -17,8 +17,8 @@ Reject.skills = {
             name: "Regeneration",
             properties: ["physical", "stamina", "heal"],
             cost: { stamina: 25 },
-            description: "Heals a lot (20% max hp)",
-            code() { heal(this, [this], [2]) }
+            description: "Heals a lot (30% max hp)",
+            code() { heal(this, [this], [3]) }
         },
         {
             name: "Rejected by All",
@@ -52,8 +52,8 @@ Reject.skills = {
             name: "Regeneration",
             properties: ["physical", "stamina", "heal"],
             cost: { stamina: 15 },
-            description: "Heals moderately (15% max hp)",
-            code() { heal(this, [this], [1.5]) }
+            description: "Heals moderately (25% max hp)",
+            code() { heal(this, [this], [2.5]) }
         },
         {
             name: "Rejected by All",
@@ -102,8 +102,8 @@ Reject.skills = {
         {
             name: "Regeneration",
             properties: ["physical", "heal"],
-            description: "Heals a bit (7.5% max hp)",
-            code() { heal(this, [this], [.75]) }
+            description: "Heals a bit (17.5% max hp)",
+            code() { heal(this, [this], [1.75]) }
         },
         {
             name: "Rejected by All",

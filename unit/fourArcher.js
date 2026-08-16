@@ -1,4 +1,4 @@
-import { unitFilter, Modifier, handleEvent, removeModifier, basicModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentUnit, currentAction, elements, eventState } from '../combatDictionary.js';
+import { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, stunModifier, attribCancelMod, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentAction, elements, eventState } from '../combatDictionary.js';
 import { Unit, allUnits } from './unit.js';
 
 export const FourArcher = new Unit("4 (Archer)", [800, 36, 16, 50, 80, 70, 140, 85, 160, "back", 110, 40, 7, 160, 24], ["perfection/precision"]);
@@ -70,7 +70,7 @@ FourArcher.skills = {
                             this.vars.attacking = true;
                             let target = randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false));
                             if (resistDebuff(this.vars.caster, target)[0] > 70) crit(this.vars.caster, target, [[this.accuracy/2]]);
-                        } else if (context.event === "singleDamage" && context.attacker === this.vars.caster && (currentAction.at(-2).properties?.includes("auto-hit") || currentAction.at(-2).vars?.properties?.includes("auto-hit")) && context.critical < 1) {
+                        } else if (context.event === "singleDamage" && context.attacker === this.vars.caster && (currentAction.at(-2)[0].properties?.includes("auto-hit") || currentAction.at(-2)[0].vars?.properties?.includes("auto-hit")) && context.critical < 1) {
                             this.vars.attacking = true;
                             attack(this.vars.caster, randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false)), 1, context.calcMods);
                         }
@@ -270,7 +270,7 @@ FourArcher.skills = {
                             this.vars.attacking = true;
                             let target = randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false));
                             if (resistDebuff(this.vars.caster, target)[0] > 70) crit(this.vars.caster, target, [[this.accuracy/4]]);
-                        } else if (context.event === "singleDamage" && context.attacker === this.vars.caster && (currentAction.at(-2).properties?.includes("auto-hit") || currentAction.at(-2).vars?.properties?.includes("auto-hit")) && context.critical < 1 && resourceChange(this.vars.caster, this.vars.cost, false)) {
+                        } else if (context.event === "singleDamage" && context.attacker === this.vars.caster && (currentAction.at(-2)[0].properties?.includes("auto-hit") || currentAction.at(-2)[0].vars?.properties?.includes("auto-hit")) && context.critical < 1 && resourceChange(this.vars.caster, this.vars.cost, false)) {
                             this.vars.attacking = true;
                             attack(this.vars.caster, randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false)), 1, context.calcMods)
                         }

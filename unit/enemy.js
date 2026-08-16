@@ -1,4 +1,4 @@
-import { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, stunModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentUnit, currentAction, elements, eventState } from '../combatDictionary.js';
+import { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, stunModifier, attribCancelMod, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, unitByStat, modifiers, currentAction, elements, eventState } from '../combatDictionary.js';
 import { Unit, allUnits } from './unit.js';
 
 export const enemy = new Unit("Basic Enemy", [1000, 30, 30, 100, 100, 100, 100, 100, 100, "front", 100, 100, 10]);
@@ -53,7 +53,7 @@ enemy.skills = {
                         function() {},
                         function(context) {
                             let i;
-                            if (context.event === 'targetStart' && currentUnit.at(-2) === this.vars.target && (i = context.unitList.findIndex(u => u === this.vars.caster)) > -1) (((context.targetMods.targets ??= [])[i] ??= {}).presence ??= { mult: 1 }).mult++;
+                            if (context.event === 'targetStart' && currentAction.at(-2)[1] === this.vars.target && (i = context.unitList.findIndex(u => u === this.vars.caster)) > -1) (((context.targetMods.targets ??= [])[i] ??= {}).presence ??= { mult: 1 }).mult++;
                             if (context.unit === this.vars.caster) this.vars.duration--;
                             return this.vars.duration > 0;
                         }
@@ -117,7 +117,7 @@ enemy.skills = {
                         function() {},
                         function(context) {
                             let i;
-                            if (context.event === 'targetStart' && currentUnit.at(-2) === this.vars.target && (i = context.unitList.findIndex(u => u === this.vars.caster)) > -1) (((context.targetMods.targets ??= [])[i] ??= {}).presence ??= { mult: 1 }).mult += 1;
+                            if (context.event === 'targetStart' && currentAction.at(-2)[1] === this.vars.target && (i = context.unitList.findIndex(u => u === this.vars.caster)) > -1) (((context.targetMods.targets ??= [])[i] ??= {}).presence ??= { mult: 1 }).mult += 1;
                             if (context.unit === this.vars.caster) this.vars.duration--;
                             return this.vars.duration > 0;
                         }
@@ -129,8 +129,8 @@ enemy.skills = {
             name: "Recover",
             properties: ["physical", "stamina", "heal"],
             cost: { stamina: 10 },
-            description: "Heals moderately (15% max hp)",
-            code() { heal(this, [this], [1.5]) }
+            description: "Heals moderately (25% max hp)",
+            code() { heal(this, [this], [2.5]) }
         }
     ],
     secondary: [
@@ -166,7 +166,7 @@ enemy.skills = {
         {
             name: "Taunt",
             properties: ["debuff"],
-            description: "Chance to decrease target focus and double the chance for caster to be targeted by target for a 1 turn",
+            description: "Chance to decrease target focus and double the chance for caster to be targeted by target for 1 turn",
             code() {
                 let target = randTarget(unitFilter(this.team === "player" ? "enemy" : "player", "front", false)), will = resistDebuff(this, target)[0];
                 if (will > 33) {
@@ -176,7 +176,7 @@ enemy.skills = {
                         function() {},
                         function(context) {
                             let i;
-                            if (context.event === 'targetStart' && currentUnit.at(-2) === this.vars.target && (i = context.unitList.findIndex(u => u === this.vars.caster)) > -1) (((context.targetMods.targets ??= [])[i] ??= {}).presence ??= { mult: 1 }).mult += 1;
+                            if (context.event === 'targetStart' && currentAction.at(-2)[1] === this.vars.target && (i = context.unitList.findIndex(u => u === this.vars.caster)) > -1) (((context.targetMods.targets ??= [])[i] ??= {}).presence ??= { mult: 1 }).mult += 1;
                             if (context.unit === this.vars.caster) this.vars.duration--;
                             return this.vars.duration > 0;
                         }
@@ -187,8 +187,8 @@ enemy.skills = {
         {
             name: "Recover",
             properties: ["physical", "heal"],
-            description: "Heals moderately (10% max hp)",
-            code() { heal(this, [this], [1]) }
+            description: "Heals moderately (20% max hp)",
+            code() { heal(this, [this], [2]) }
         }
     ],
     passive: [
@@ -249,7 +249,7 @@ enemy.skills = {
                             if (!this.vars.fail && will <= 33) this.cancel(this.vars.fail = true);
                         }
                         let i;
-                        if (this.vars.target && context.event === 'targetStart' && currentUnit.at(-2) === this.vars.target && (i = context.unitList.findIndex(u => u === this.vars.caster)) > -1) (((context.targetMods.targets ??= [])[i] ??= {}).presence ??= { mult: 1 }).mult += 1;
+                        if (this.vars.target && context.event === 'targetStart' && currentAction.at(-2)[1] === this.vars.target && (i = context.unitList.findIndex(u => u === this.vars.caster)) > -1) (((context.targetMods.targets ??= [])[i] ??= {}).presence ??= { mult: 1 }).mult += 1;
                     }, undefined,
                     function(unit) {
                         if (!this.vars.target) resetStat(unit, Object.keys(this.vars.stats), Object.values(this.vars.stats));
@@ -265,12 +265,12 @@ enemy.skills = {
         {
             name: "Recover",
             properties: ["physical", "stamina", "heal"],
-            description: `Heals (~2.5% max HP) at start of turn`,
+            description: `Heals (~5% max HP) at start of turn`,
             code() {
                 new Modifier("Recover", `Heals at start of turn`,
                     { caster: this, target: this, properties: ["physical", "heal"], listeners: { turnStart: true }, cancelListeners: ['turnStart'], focus: true, passive: true },
                     function() {},
-                    function(context) { if (this.vars.target === context.unit) heal(this.vars.caster, [this.vars.target], [.25]) }
+                    function(context) { if (this.vars.target === context.unit) heal(this.vars.caster, [this.vars.target], [.5]) }
                 );
             }
         }
@@ -334,7 +334,7 @@ enemy.skills = {
                             if (!this.vars.fail && will <= 33) this.cancel(this.vars.fail = true);
                         }
                         let i;
-                        if (this.vars.target && context.event === 'targetStart' && currentUnit.at(-2) === this.vars.target && (i = context.unitList.findIndex(u => u === this.vars.caster)) > -1) (((context.targetMods.targets ??= [])[i] ??= {}).presence ??= { mult: 1 }).mult += 1;
+                        if (this.vars.target && context.event === 'targetStart' && currentAction.at(-2)[1] === this.vars.target && (i = context.unitList.findIndex(u => u === this.vars.caster)) > -1) (((context.targetMods.targets ??= [])[i] ??= {}).presence ??= { mult: 1 }).mult += 1;
                     }, undefined,
                     function(unit) {
                         if (!this.vars.target) resetStat(unit, Object.keys(this.vars.stats), Object.values(this.vars.stats));
@@ -350,12 +350,12 @@ enemy.skills = {
         {
             name: "Recover",
             properties: ["physical", "stamina", "heal"],
-            description: `Heals (~5% max HP) at start of turn`,
+            description: `Heals (~7.5% max HP) at start of turn`,
             code() {
                 new Modifier("Recover", `Heals at start of turn`,
                     { caster: this, target: this, properties: ["physical", "heal"], listeners: { turnStart: true }, cancelListeners: ['turnStart'], focus: true, passive: true },
                     function() {},
-                    function(context) { if (this.vars.target === context.unit) heal(this.vars.caster, [this.vars.target], [.5]) }
+                    function(context) { if (this.vars.target === context.unit) heal(this.vars.caster, [this.vars.target], [.75]) }
                 );
             }
         }

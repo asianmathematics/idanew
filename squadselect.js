@@ -2,7 +2,7 @@ import { DexSoldier } from './unit/dexSoldier.js';
 import { FourArcher } from './unit/fourArcher.js';
 import { Mannequin } from './unit/mannequin.js';
 import { Silhouette } from './unit/silhouette.js';
-import { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, modifiers, currentUnit, currentAction, elements, eventState } from './combatDictionary.js';
+import { sleep, unitFilter, Modifier, handleEvent, removeModifier, basicModifier, logAction, resetStat, regenerateResources, enemyTurn, randTarget, selectTarget, showMessage, cleanupGlobalHandlers, attack, crit, damage, heal, hpChange, resistDebuff, resourceChange, modifiers, currentAction, elements, eventState } from './combatDictionary.js';
 import { Unit, createUnit, cloneUnit, allUnits } from './unit/unit.js';
 
 const availableUnits = [DexSoldier, FourArcher, Mannequin, Silhouette];
